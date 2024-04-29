@@ -4,6 +4,7 @@
 /[Bb]uild/*
 /[Bb]uilds/*
 /[Ll]ibrary/*
+/Logs/*
 
 # Visual Studio (Code) related
 .vs/*

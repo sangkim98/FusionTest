@@ -56,6 +56,6 @@
         "temp/": true,
         "Temp/": true
     },
-    "dotnet.defaultSolution": "pose2action.sln",
+    "dotnet.defaultSolution": "SentisTest.sln",
     "git.ignoreLimitWarning": true
 }
