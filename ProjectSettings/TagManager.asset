@@ -11,7 +11,7 @@ TagManager:
   - 
   - Water
   - UI
-  - LocalPlayerModel
+  - Sentis Output
   - 
   - 
   - 
@@ -40,4 +40,7 @@ TagManager:
   m_SortingLayers:
   - name: Default
     uniqueID: 0
+    locked: 0
+  - name: Sentis Visualization
+    uniqueID: 2352959973
     locked: 0
