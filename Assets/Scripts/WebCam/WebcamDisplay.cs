@@ -17,28 +17,24 @@ public class PoseEstimatorTest : MonoBehaviour
     // Sprites and Materials
     public Sprite spriteCircle;
     public Material webcamMaterial;
+
+    private PoseEstimator poseEstimator;
+
     WebCamTexture webcamTexture;
 
     // Webcam Setup
     const int webcamWidth = 640;
     const int webcamHeight = 360;
 
-    // Sentis Related
     const int resizedImageSize = 320;
-    const BackendType backend = BackendType.GPUCompute;
-    public ModelAsset yoloPoseModelAsset;
-    public ModelAsset motionbertModelAsset;
-    private IWorker yoloPoseWorker;
-    private IWorker motionbertWorker;
-    private TextureTransform textureTransform;
-    
-    private TensorFloat inputTensor;
-    private TensorFloat centersToCorners;
     private float scaleX;
     private float scaleY;
-
-    [SerializeField, Range(0, 1)] float iouThreshold = 0.5f;
-    [SerializeField, Range(0, 1)] float scoreThreshold = 0.5f;
+    // Sentis Related
+    public ModelAsset yoloPoseModelAsset;
+    public ModelAsset motionbertModelAsset;
+    
+    // [SerializeField, Range(0, 1)] float iouThreshold = 0.5f;
+    // [SerializeField, Range(0, 1)] float scoreThreshold = 0.5f;
 
     void Start()
     {
@@ -49,14 +45,13 @@ public class PoseEstimatorTest : MonoBehaviour
             print("Webcam available: " + devices[i].name);
         }
 
-        webcamTexture = new WebCamTexture(devices[0].name, webcamWidth, webcamHeight, 60);
+        webcamTexture = new WebCamTexture(devices[1].name, webcamWidth, webcamHeight, 60);
 
         webcamTexture.Play();
 
-        scaleX = (float)webcamWidth / resizedImageSize;
-        scaleY = (float)webcamHeight / resizedImageSize;
+        poseEstimator = new PoseEstimator(webcamTexture, ref yoloPoseModelAsset, ref motionbertModelAsset, backend: BackendType.GPUCompute);
 
-        textureTransform = new TextureTransform().SetDimensions(width: resizedImageSize, height: resizedImageSize, channels: 3);
+        (scaleX, scaleY) = poseEstimator.getImageScale();
 
         points = new List<GameObject>();
         points3d = new List<GameObject>();
@@ -64,108 +59,26 @@ public class PoseEstimatorTest : MonoBehaviour
         initSprites();
         init3DKeypoints();
         initPoseImage();
-
-        LoadModel(resizedImageSize);
     }
 
     void Update()
-    {
-        inputTensor = TextureConverter.ToTensor(webcamTexture, textureTransform);
-        
-        yoloPoseWorker.Execute(inputTensor);
+    {        
+        poseEstimator.executeTwoDPoseWorker(webcamTexture);
 
-        TensorFloat joints_yolo = yoloPoseWorker.PeekOutput("output_0") as TensorFloat;
-        TensorFloat joints2d = yoloPoseWorker.PeekOutput("output_1") as TensorFloat;
-
-        joints_yolo.CompleteOperationsAndDownload();
-        joints2d.CompleteOperationsAndDownload();
+        TensorFloat joints_yolo = poseEstimator.getTwoDPoseOutput();
 
         DrawPoints(joints_yolo);
 
-        motionbertWorker.Execute(joints2d);
+        poseEstimator.executeThreeDPoseWorker(joints_yolo);
 
-        TensorFloat joints_3d = motionbertWorker.PeekOutput("output_0") as TensorFloat;
-
-        joints_3d.CompleteOperationsAndDownload();
+        TensorFloat joints_3d = poseEstimator.getThreeDPoseOutput();
 
         Debug.Log("3D Pose Shape: " + joints_3d.shape);
 
         Draw3dPoints(joints_3d);
 
-        inputTensor.Dispose();
-    }
-
-    void LoadModel(int imageSize) {
-        var yoloPoseModel = ModelLoader.Load(yoloPoseModelAsset);
-        var motionbertModel = ModelLoader.Load(motionbertModelAsset);
-
-        centersToCorners = new TensorFloat(new TensorShape(4, 4), new float[]{
-            1,0,1,0,
-            0,1,0,1,
-            -0.5f, 0, 0.5f, 0,
-            0, -0.5f, 0, 0.5f
-        });
-
-        yoloPoseModel = FF.Compile(
-            input => {
-                var modelOutput = yoloPoseModel.Forward(input)[0];
-                var boxCoords = modelOutput[0, 0..4, ..].Transpose(0, 1);                   // shape=(8400,4)
-                var jointsCoords = modelOutput[0, 5.., ..].Transpose(0, 1);                 // shape=(8400,51)
-                var scores = modelOutput[0, 4, ..] - scoreThreshold;
-                var boxCorners = FF.MatMul(boxCoords, FunctionalTensor.FromTensor(centersToCorners));
-                var indices = FF.NMS(boxCorners, scores, iouThreshold);                     // shape=(1)
-                var indices_joints = indices.Unsqueeze(-1).BroadcastTo(new int[] { 51 });   // shape=(1,51)
-                var joints_coords = FF.Gather(jointsCoords, 0, indices_joints);             // shape=(1,51)
-                var joints_reshaped = joints_coords.Reshape(new int[] { 1, 1, 17, -1 });    // shape=(1,1,17,3)
-                return (joints_coords, joints_reshaped);
-            },
-            InputDef.FromModel(yoloPoseModel)[0]
-        );
-
-        /*
-            COCO:
-            0: nose 1: Leye 2: Reye 3: Lear 4Rear
-            5: Lsho 6: Rsho 7: Lelb 8: Relb 9: Lwri
-            10: Rwri 11: Lhip 12: Rhip 13: Lkne 14: Rkne
-            15: Lank 16: Rank
-            
-            H36M:
-            0: root, 1: rhip, 2: rkne, 3: rank, 4: lhip,
-            5: lkne, 6: lank, 7: belly, 8: neck, 9: nose,
-            10: head, 11: lsho, 12: lelb, 13: lwri, 14: rsho,
-            15: relb, 16: rwri
-        */
-
-        motionbertModel = FF.Compile(
-            input => {
-                input[..,..,..,..2] -= (float)imageSize / 2;
-                input[..,..,..,..2] /= (float)imageSize;
-                var y = input.Clone();
-                y[..,..,0,..] = (input[..,..,11,..] + input[..,..,12,..]) * 0.5f;
-                y[..,..,1,..] = input[..,..,12,..];
-                y[..,..,2,..] = input[..,..,14,..];
-                y[..,..,3,..] = input[..,..,16,..];
-                y[..,..,4,..] = input[..,..,11,..];
-                y[..,..,5,..] = input[..,..,13,..];
-                y[..,..,6,..] = input[..,..,15,..];
-                y[..,..,8,..] = (input[..,..,5,..] + input[..,..,6,..]) * 0.5f;
-                y[..,..,7,..] = (y[..,..,0,..] + y[..,..,8,..]) * 0.5f;
-                y[..,..,9,..] = input[..,..,0,..];
-                y[..,..,10,..] = (input[..,..,1,..] + input[..,..,2,..]) * 0.5f;
-                y[..,..,11,..] = input[..,..,5,..];
-                y[..,..,12,..] = input[..,..,7,..];
-                y[..,..,13,..] = input[..,..,9,..];
-                y[..,..,14,..] = input[..,..,6,..];
-                y[..,..,15,..] = input[..,..,8,..];
-                y[..,..,16,..] = input[..,..,10,..];
-                var output = motionbertModel.Forward(y)[0];
-                return output;
-            },
-            InputDef.FromTensor(TensorFloat.AllocNoData(new TensorShape(1,1,17,3)))
-        );
-
-        yoloPoseWorker = WorkerFactory.CreateWorker(backend, yoloPoseModel);
-        motionbertWorker = WorkerFactory.CreateWorker(backend, motionbertModel);
+        joints_yolo.Dispose();
+        joints_3d.Dispose();
     }
 
     void initPoseImage() {
@@ -262,8 +175,7 @@ public class PoseEstimatorTest : MonoBehaviour
     }
 
     void OnDisable() {
-        yoloPoseWorker.Dispose();
-        motionbertWorker.Dispose();
+        
     }
 
 }
