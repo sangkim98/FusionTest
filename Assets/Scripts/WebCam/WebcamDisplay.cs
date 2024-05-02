@@ -5,10 +5,8 @@ using Unity.VisualScripting;
 using UnityEngine.UI;
 using System.Collections.Generic;
 using System;
-using UnityEditor.VersionControl;
-using System.Linq.Expressions;
 
-public class PoseEstimator : MonoBehaviour
+public class PoseEstimatorTest : MonoBehaviour
 {
     // Game Objects
     private List<GameObject> points;
