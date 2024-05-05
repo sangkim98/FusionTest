@@ -2,19 +2,10 @@ using UnityEngine;
 using Unity.Sentis;
 using FF = Unity.Sentis.Functional;
 using Unity.VisualScripting;
-using UnityEngine.UI;
-using System.Collections.Generic;
 using System;
 
-public class PoseEstimator {
+public class PoseEstimator : IDisposable {
 
-    private int webcamWidth;
-    private int webcamHeight;
-    private float requestedFPS;
-    const int resizedImageSize=320;
-
-    private float scaleX;
-    private float scaleY;
     private TextureTransform textureTransform;
 
     private float iouThreshold=0.5f;
@@ -23,24 +14,23 @@ public class PoseEstimator {
     private IWorker TwoDPoseWorker;
     private IWorker ThreeDPoseWorker;
     private BackendType backend;
-    private TensorFloat inputTensor;
-    public PoseEstimator(WebCamTexture webcamTexture, ref ModelAsset TwoDPoseModelAsset, ref ModelAsset ThreeDPoseModelAsset, BackendType backend) {
-        this.webcamWidth = webcamTexture.width;
-        this.webcamHeight = webcamTexture.height;
-        this.requestedFPS = webcamTexture.requestedFPS;
 
+    TensorFloat inputTensor;
+    TensorFloat twoDJoints;
+    TensorFloat threeDJoints;
+
+    public PoseEstimator(int resizedSquareImageDim, ref ModelAsset TwoDPoseModelAsset, ref ModelAsset ThreeDPoseModelAsset, BackendType backend) {
+        
         this.backend = backend;
 
-        scaleX = (float)this.webcamWidth / resizedImageSize;
-        scaleY = (float)this.webcamHeight / resizedImageSize;
+        textureTransform = new TextureTransform().SetDimensions(width: resizedSquareImageDim, height: resizedSquareImageDim, channels: 3);
 
-        textureTransform = new TextureTransform().SetDimensions(width: resizedImageSize, height: resizedImageSize, channels: 3);
-
-        LoadModel(resizedImageSize, ref TwoDPoseModelAsset, ref ThreeDPoseModelAsset);
+        LoadModel(resizedSquareImageDim, ref TwoDPoseModelAsset, ref ThreeDPoseModelAsset);
 
     }
 
     private void LoadModel(int imageSize, ref ModelAsset TwoDPoseModelAsset, ref ModelAsset ThreeDPoseModelAsset) {
+
         var yoloPoseModel = ModelLoader.Load(TwoDPoseModelAsset);
         var motionbertModel = ModelLoader.Load(ThreeDPoseModelAsset);
 
@@ -62,7 +52,7 @@ public class PoseEstimator {
                 var indices_joints = indices.Unsqueeze(-1).BroadcastTo(new int[] { 51 });   // shape=(1,51)
                 var joints_coords = FF.Gather(jointsCoords, 0, indices_joints);             // shape=(1,51)
                 var joints_reshaped = joints_coords.Reshape(new int[] { 1, 1, 17, -1 });    // shape=(1,1,17,3)
-                return (joints_coords, joints_reshaped);
+                return joints_reshaped;
             },
             InputDef.FromModel(yoloPoseModel)[0]
         );
@@ -109,46 +99,70 @@ public class PoseEstimator {
             InputDef.FromTensor(TensorFloat.AllocNoData(new TensorShape(1,1,17,3)))
         );
 
-        this.TwoDPoseWorker = WorkerFactory.CreateWorker(this.backend, yoloPoseModel);
-        this.ThreeDPoseWorker = WorkerFactory.CreateWorker(this.backend, motionbertModel);
+        centersToCorners.Dispose();
+
+        TwoDPoseWorker = WorkerFactory.CreateWorker(this.backend, yoloPoseModel);
+        ThreeDPoseWorker = WorkerFactory.CreateWorker(this.backend, motionbertModel);
+
     }
 
     public void executeTwoDPoseWorker(WebCamTexture webcamTexture) {
-        inputTensor = TextureConverter.ToTensor(webcamTexture, textureTransform);
 
-        Debug.Log("TwoDPose: " + inputTensor.shape);
+        inputTensor = TextureConverter.ToTensor(webcamTexture, textureTransform);
 
         this.TwoDPoseWorker.Execute(inputTensor);
 
-        inputTensor.Dispose();
+        inputTensor?.Dispose();
+        
     }
 
     public TensorFloat getTwoDPoseOutput() {
-        TensorFloat twoDJoints = this.TwoDPoseWorker.PeekOutput("output_1") as TensorFloat;
-        
+ 
+        twoDJoints = this.TwoDPoseWorker.PeekOutput("output_0") as TensorFloat;
+
         twoDJoints.CompleteOperationsAndDownload();
 
         return twoDJoints;        
+
     }
 
     public void executeThreeDPoseWorker(TensorFloat twoDPoseTensor) {
+
         this.ThreeDPoseWorker.Execute(twoDPoseTensor);
+
+        twoDPoseTensor.Dispose();
+
     }
 
     public TensorFloat getThreeDPoseOutput() {
-        TensorFloat threeDJoints = this.ThreeDPoseWorker.PeekOutput("output_0") as TensorFloat;
+
+        threeDJoints = this.ThreeDPoseWorker.PeekOutput("output_0") as TensorFloat;
 
         threeDJoints.CompleteOperationsAndDownload();
 
         return threeDJoints;
+
     }
 
-    public (float, float) getImageScale() {
-        return (this.scaleX, this.scaleY);
+    public void Dispose() {
+
+        inputTensor?.Dispose();
+        twoDJoints?.Dispose();
+        threeDJoints?.Dispose();
+        inputTensor = null;
+        twoDJoints = null;
+        threeDJoints = null;
+
+        TwoDPoseWorker?.Dispose();
+        ThreeDPoseWorker?.Dispose();
+        TwoDPoseWorker = null;
+        ThreeDPoseWorker = null;
+
     }
 
     ~PoseEstimator() {
-        TwoDPoseWorker.Dispose();
-        ThreeDPoseWorker.Dispose();
+
+        Dispose();
+
     }
 }
