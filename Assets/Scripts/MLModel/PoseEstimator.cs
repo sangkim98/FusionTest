@@ -5,34 +5,37 @@ using Unity.VisualScripting;
 using System;
 
 public class PoseEstimator : IDisposable {
-
+    
     private TextureTransform textureTransform;
-
-    private float iouThreshold=0.5f;
-    private float scoreThreshold=0.5f;
-
-    private IWorker TwoDPoseWorker;
-    private IWorker ThreeDPoseWorker;
+    private IWorker twoDPoseWorker;
+    private IWorker threeDPoseWorker;
     private BackendType backend;
 
-    TensorFloat inputTensor;
-    TensorFloat twoDJoints;
-    TensorFloat threeDJoints;
+    private TensorFloat inputTensor = null;
 
-    public PoseEstimator(int resizedSquareImageDim, ref ModelAsset TwoDPoseModelAsset, ref ModelAsset ThreeDPoseModelAsset, BackendType backend) {
-        
-        this.backend = backend;
+    private float iouThreshold = 0.5f;
+    private float scoreThreshold = 0.5f;
 
-        textureTransform = new TextureTransform().SetDimensions(width: resizedSquareImageDim, height: resizedSquareImageDim, channels: 3);
+    private Vector3[] threeDJointsVector;
 
-        LoadModel(resizedSquareImageDim, ref TwoDPoseModelAsset, ref ThreeDPoseModelAsset);
+    public PoseEstimator(int resizedSquareImageDim, ref ModelAsset twoDPoseModelAsset, ref ModelAsset threeDPoseModelAsset, BackendType backend) {
+
+            this.backend = backend;
+
+            textureTransform = new TextureTransform().SetDimensions(width: resizedSquareImageDim, height: resizedSquareImageDim, channels: 3);
+
+            LoadModel(resizedSquareImageDim, ref twoDPoseModelAsset, ref threeDPoseModelAsset);
+
+            // Store joint locations as vector
+
+            threeDJointsVector = new Vector3[17];
 
     }
 
-    private void LoadModel(int imageSize, ref ModelAsset TwoDPoseModelAsset, ref ModelAsset ThreeDPoseModelAsset) {
+    private void LoadModel(int resizedSquareImageDim, ref ModelAsset twoDPoseModelAsset, ref ModelAsset threeDPoseModelAsset) {
 
-        var yoloPoseModel = ModelLoader.Load(TwoDPoseModelAsset);
-        var motionbertModel = ModelLoader.Load(ThreeDPoseModelAsset);
+        var twoDPoseModel = ModelLoader.Load(twoDPoseModelAsset);
+        var threeDPoseModel = ModelLoader.Load(threeDPoseModelAsset);
 
         TensorFloat centersToCorners = new TensorFloat(new TensorShape(4, 4), new float[]{
             1,0,1,0,
@@ -41,9 +44,9 @@ public class PoseEstimator : IDisposable {
             0, -0.5f, 0, 0.5f
         });
 
-        yoloPoseModel = FF.Compile(
+        twoDPoseModel = FF.Compile(
             input => {
-                var modelOutput = yoloPoseModel.Forward(input)[0];
+                var modelOutput = twoDPoseModel.Forward(input)[0];
                 var boxCoords = modelOutput[0, 0..4, ..].Transpose(0, 1);                   // shape=(8400,4)
                 var jointsCoords = modelOutput[0, 5.., ..].Transpose(0, 1);                 // shape=(8400,51)
                 var scores = modelOutput[0, 4, ..] - scoreThreshold;
@@ -54,7 +57,7 @@ public class PoseEstimator : IDisposable {
                 var joints_reshaped = joints_coords.Reshape(new int[] { 1, 1, 17, -1 });    // shape=(1,1,17,3)
                 return joints_reshaped;
             },
-            InputDef.FromModel(yoloPoseModel)[0]
+            InputDef.FromModel(twoDPoseModel)[0]
         );
 
         /*
@@ -71,10 +74,10 @@ public class PoseEstimator : IDisposable {
             15: relb, 16: rwri
         */
 
-        motionbertModel = FF.Compile(
+        threeDPoseModel = FF.Compile(
             input => {
-                input[..,..,..,..2] -= (float)imageSize / 2;
-                input[..,..,..,..2] /= (float)imageSize;
+                input[..,..,..,..2] -= (float)resizedSquareImageDim / 2;
+                input[..,..,..,..2] /= (float)resizedSquareImageDim;
                 var y = input.Clone();
                 y[..,..,0,..] = (input[..,..,11,..] + input[..,..,12,..]) * 0.5f;
                 y[..,..,1,..] = input[..,..,12,..];
@@ -93,7 +96,8 @@ public class PoseEstimator : IDisposable {
                 y[..,..,14,..] = input[..,..,6,..];
                 y[..,..,15,..] = input[..,..,8,..];
                 y[..,..,16,..] = input[..,..,10,..];
-                var output = motionbertModel.Forward(y)[0];
+                var output = threeDPoseModel.Forward(y)[0];
+                output[..,..,..,..] *= -1;
                 return output;
             },
             InputDef.FromTensor(TensorFloat.AllocNoData(new TensorShape(1,1,17,3)))
@@ -101,62 +105,62 @@ public class PoseEstimator : IDisposable {
 
         centersToCorners.Dispose();
 
-        TwoDPoseWorker = WorkerFactory.CreateWorker(this.backend, yoloPoseModel);
-        ThreeDPoseWorker = WorkerFactory.CreateWorker(this.backend, motionbertModel);
+        twoDPoseWorker = WorkerFactory.CreateWorker(backend, twoDPoseModel);
+        threeDPoseWorker = WorkerFactory.CreateWorker(backend, threeDPoseModel);
 
     }
 
-    public void executeTwoDPoseWorker(WebCamTexture webcamTexture) {
+    public bool RunML(WebCamTexture webcamTexture) {
+
+        bool goodEstimate = false;
+
+        inputTensor?.Dispose();
 
         inputTensor = TextureConverter.ToTensor(webcamTexture, textureTransform);
 
-        this.TwoDPoseWorker.Execute(inputTensor);
-
-        inputTensor?.Dispose();
+        twoDPoseWorker.Execute(inputTensor);
         
+        var twoDJointsTensor = twoDPoseWorker.PeekOutput() as TensorFloat;
+        
+        twoDJointsTensor.CompleteOperationsAndDownload();
+
+        if(twoDJointsTensor.shape[2] == 17 && twoDJointsTensor.shape[3] == 3) {
+
+            int numJoints = twoDJointsTensor.shape[2];
+
+            threeDPoseWorker.Execute(twoDJointsTensor);
+
+            var threeDJointsTensor = threeDPoseWorker.PeekOutput() as TensorFloat;
+
+            threeDJointsTensor.CompleteOperationsAndDownload();
+
+            for (int idx = 0; idx < numJoints; idx++) {
+
+                threeDJointsVector[idx].x = threeDJointsTensor[0,0,idx,0];
+                threeDJointsVector[idx].y = threeDJointsTensor[0,0,idx,1];
+                threeDJointsVector[idx].z = threeDJointsTensor[0,0,idx,2];
+
+            }
+
+            goodEstimate = true;
+
+        }
+
+        return goodEstimate;
+
     }
 
-    public TensorFloat getTwoDPoseOutput() {
- 
-        twoDJoints = this.TwoDPoseWorker.PeekOutput("output_0") as TensorFloat;
+    public Vector3[] getThreeDPose() {
 
-        twoDJoints.CompleteOperationsAndDownload();
-
-        return twoDJoints;        
-
-    }
-
-    public void executeThreeDPoseWorker(TensorFloat twoDPoseTensor) {
-
-        this.ThreeDPoseWorker.Execute(twoDPoseTensor);
-
-        twoDPoseTensor.Dispose();
-
-    }
-
-    public TensorFloat getThreeDPoseOutput() {
-
-        threeDJoints = this.ThreeDPoseWorker.PeekOutput("output_0") as TensorFloat;
-
-        threeDJoints.CompleteOperationsAndDownload();
-
-        return threeDJoints;
-
+        return threeDJointsVector;
+        
     }
 
     public void Dispose() {
 
         inputTensor?.Dispose();
-        twoDJoints?.Dispose();
-        threeDJoints?.Dispose();
-        inputTensor = null;
-        twoDJoints = null;
-        threeDJoints = null;
-
-        TwoDPoseWorker?.Dispose();
-        ThreeDPoseWorker?.Dispose();
-        TwoDPoseWorker = null;
-        ThreeDPoseWorker = null;
+        twoDPoseWorker?.Dispose();
+        threeDPoseWorker?.Dispose();
 
     }
 
@@ -165,4 +169,5 @@ public class PoseEstimator : IDisposable {
         Dispose();
 
     }
+
 }
