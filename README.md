@@ -10,6 +10,10 @@
 
 ![new scene](Information/resources/initial.png)
 
+### Change Rig Animation Type to Humanoid
+
+![change to humanoid](Information/resources/change_to_humanoid.png)
+
 ### Add Character to the Scene and Add Script + Animator
 
 Only use humanoid characters.
