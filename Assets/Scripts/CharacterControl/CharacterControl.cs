@@ -161,7 +161,7 @@ public class CharacterControl : MonoBehaviour {
         const int rootIndex = 0;
         const int headIndex = 10;
 
-        Vector3 delta = getRootHipDelta(characterHip.position, joints[rootIndex]);
+        Vector3 delta = getRootHipDelta(characterHip.localPosition, joints[rootIndex]);
         float rootHeadDistance = getRootHeadDistance(joints[rootIndex], joints[headIndex]);
         float ratio = (hipHeadEndDistance / rootHeadDistance);
 
