@@ -24,6 +24,7 @@ public class CharacterControl : MonoBehaviour {
 
     // IK Control
     public bool ikActive = false;
+    public bool lowerBody = false;
     private Transform leftHandObj = null;
     private Transform rightHandObj = null;
     private Transform lookObj = null;
@@ -100,14 +101,14 @@ public class CharacterControl : MonoBehaviour {
                     animator.SetIKRotation(AvatarIKGoal.RightHand, rightHandObj.rotation);
                 }
                 
-                if(leftFootObj != null) {
+                if(leftFootObj != null && lowerBody) {
                     animator.SetIKPositionWeight(AvatarIKGoal.LeftFoot,1);
                     animator.SetIKRotationWeight(AvatarIKGoal.LeftFoot,1);
                     animator.SetIKPosition(AvatarIKGoal.LeftFoot, leftFootObj.position);
                     animator.SetIKRotation(AvatarIKGoal.LeftFoot, leftFootObj.rotation);
                 }
 
-                if(rightFootObj != null) {
+                if(rightFootObj != null && lowerBody) {
                     animator.SetIKPositionWeight(AvatarIKGoal.RightFoot,1);
                     animator.SetIKRotationWeight(AvatarIKGoal.RightFoot,1);
                     animator.SetIKPosition(AvatarIKGoal.RightFoot, rightFootObj.position);
@@ -162,7 +163,7 @@ public class CharacterControl : MonoBehaviour {
 
         Vector3 delta = getRootHipDelta(characterHip.position, joints[rootIndex]);
         float rootHeadDistance = getRootHeadDistance(joints[rootIndex], joints[headIndex]);
-        float ratio = 1.2f * (hipHeadEndDistance / rootHeadDistance);
+        float ratio = (hipHeadEndDistance / rootHeadDistance);
 
         for(int idx = 0; idx < joints.Length; idx++) {
 
