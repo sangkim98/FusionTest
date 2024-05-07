@@ -7,16 +7,18 @@ using System;
 public class PoseEstimator : IDisposable {
     
     private TextureTransform textureTransform;
+
     private IWorker twoDPoseWorker;
     private IWorker threeDPoseWorker;
     private BackendType backend;
+    public const int numJoints = 17;
 
     private TensorFloat inputTensor = null;
 
     private float iouThreshold = 0.5f;
     private float scoreThreshold = 0.5f;
 
-    private Vector3[] threeDJointsVector;
+    private Vector3[] threeDJointsVector; // Store 3D joints as Vector3 array
 
     public PoseEstimator(int resizedSquareImageDim, ref ModelAsset twoDPoseModelAsset, ref ModelAsset threeDPoseModelAsset, BackendType backend) {
 
@@ -26,9 +28,7 @@ public class PoseEstimator : IDisposable {
 
             LoadModel(resizedSquareImageDim, ref twoDPoseModelAsset, ref threeDPoseModelAsset);
 
-            // Store joint locations as vector
-
-            threeDJointsVector = new Vector3[17];
+            threeDJointsVector = new Vector3[numJoints];
 
     }
 
@@ -112,7 +112,7 @@ public class PoseEstimator : IDisposable {
 
     public bool RunML(WebCamTexture webcamTexture) {
 
-        bool goodEstimate = false;
+        bool hasPredicted = false;
 
         inputTensor?.Dispose();
 
@@ -124,9 +124,7 @@ public class PoseEstimator : IDisposable {
         
         twoDJointsTensor.CompleteOperationsAndDownload();
 
-        if(twoDJointsTensor.shape[2] == 17 && twoDJointsTensor.shape[3] == 3) {
-
-            int numJoints = twoDJointsTensor.shape[2];
+        if(twoDJointsTensor.shape[2] == numJoints && twoDJointsTensor.shape[3] == 3) {
 
             threeDPoseWorker.Execute(twoDJointsTensor);
 
@@ -142,11 +140,11 @@ public class PoseEstimator : IDisposable {
 
             }
 
-            goodEstimate = true;
+            hasPredicted = true;
 
         }
 
-        return goodEstimate;
+        return hasPredicted;
 
     }
 
