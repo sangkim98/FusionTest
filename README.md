@@ -1,5 +1,9 @@
 # Sentis 3D Pose Estimation Implementation
 
+## Package Setup
+
+[Install Sentis 1.4.0](https://docs.unity3d.com/Packages/com.unity.sentis@1.4/manual/install.html)
+
 ## Start
 
 ### Create a new scene
@@ -7,6 +11,8 @@
 ![new scene](Information/resources/initial.png)
 
 ### Add Character to the Scene and Add Script + Animator
+
+Only use humanoid characters.
 
 ![attach character control script to object](Information/resources/attach_script.png)
 
