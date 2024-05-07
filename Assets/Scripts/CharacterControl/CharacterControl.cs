@@ -9,14 +9,18 @@ public class CharacterControl : MonoBehaviour {
     PoseEstimator poseEstimator;
     const int resizedSquareImageDim = 320;
     // Game Objects
-    private GameObject targetCharacter;
     private List<GameObject> points3d;
     private Animator animator;
     private float hipHeadEndDistance;
-    private Vector3 hipLocation;
     
     public ModelAsset twoDPoseModelAsset;
     public ModelAsset threeDPoseModelAsset;
+
+    // IK Control
+    public bool ikActive = false;
+    private Transform leftHandObj = null;
+    private Transform rightHandObj = null;
+    private Transform lookObj = null;
 
     void Start() {
 
@@ -36,16 +40,18 @@ public class CharacterControl : MonoBehaviour {
         animator = GetComponent<Animator>();
 
         Transform headEndTransform = animator.transform.Find(
-            "Armature/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/" +
-            "mixamorig:Spine2/mixamorig:Neck/mixamorig:Head/mixamorig:Head_end"
+            "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/" +
+            "mixamorig:Spine2/mixamorig:Neck/mixamorig:Head/mixamorig:HeadTop_End"
         );
         Transform hipTransform = animator.transform.Find(
-            "Armature/mixamorig:Hips"
+            "mixamorig:Hips"
         );
 
-        hipLocation = hipTransform.position;
-
         hipHeadEndDistance = Vector3.Distance(hipTransform.position, headEndTransform.position);
+
+        lookObj = GameObject.Find("point3d_9").transform;
+        rightHandObj = GameObject.Find("point3d_16").transform;
+        leftHandObj = GameObject.Find("point3d_13").transform;
 
     }
 
@@ -67,11 +73,50 @@ public class CharacterControl : MonoBehaviour {
 
     }
 
+    void OnAnimatorIK() {
+
+        if(animator) {
+
+            if(ikActive) {
+
+                if(lookObj != null) {
+                    animator.SetLookAtWeight(1);
+                    animator.SetLookAtPosition(lookObj.position);
+                }    
+
+                if(leftHandObj != null) {
+                    animator.SetIKPositionWeight(AvatarIKGoal.LeftHand,1);
+                    animator.SetIKRotationWeight(AvatarIKGoal.LeftHand,1);
+                    animator.SetIKPosition(AvatarIKGoal.LeftHand, leftHandObj.position);
+                    animator.SetIKRotation(AvatarIKGoal.LeftHand, leftHandObj.rotation);
+                }
+
+                if(rightHandObj != null) {
+                    animator.SetIKPositionWeight(AvatarIKGoal.RightHand,1);
+                    animator.SetIKRotationWeight(AvatarIKGoal.RightHand,1);
+                    animator.SetIKPosition(AvatarIKGoal.RightHand, rightHandObj.position);
+                    animator.SetIKRotation(AvatarIKGoal.RightHand, rightHandObj.rotation);
+                }
+
+            }
+
+            else {
+
+                animator.SetIKPositionWeight(AvatarIKGoal.LeftHand, 0);
+                animator.SetIKRotationWeight(AvatarIKGoal.LeftHand, 0);
+                animator.SetIKPositionWeight(AvatarIKGoal.RightHand, 0);
+                animator.SetIKRotationWeight(AvatarIKGoal.RightHand, 0);
+                animator.SetLookAtWeight(0);
+
+            }
+
+        }
+
+    }
+
     private void init3DKeypoints() {
 
         points3d = new List<GameObject>();
-
-        targetCharacter = GameObject.Find("CharacterAnimated");
 
         for (int i = 0; i < 17; i++) {
 
@@ -79,10 +124,10 @@ public class CharacterControl : MonoBehaviour {
 
             sphere.name = String.Format("point3d_{0}", i);
 
-            sphere.transform.localScale = new Vector3(1,1,1);
+            sphere.transform.localScale = new Vector3(0.1f,0.1f,0.1f);
             sphere.transform.localPosition = new Vector3(0,0,0);
 
-            sphere.transform.SetParent(targetCharacter.transform, false);
+            sphere.transform.SetParent(transform, false);
 
             points3d.Add(sphere);
 
@@ -95,9 +140,13 @@ public class CharacterControl : MonoBehaviour {
         const int rootIndex = 0;
         const int headIndex = 10;
 
-        Vector3 delta = getRootHipDelta(hipLocation, joints[rootIndex]);
+        Transform hipTransform = animator.transform.Find(
+            "mixamorig:Hips"
+        );
+
+        Vector3 delta = getRootHipDelta(hipTransform.position, joints[rootIndex]);
         float rootHeadDistance = getRootHeadDistance(joints[rootIndex], joints[headIndex]);
-        float ratio = hipHeadEndDistance / rootHeadDistance;
+        float ratio = 1.2f * (hipHeadEndDistance / rootHeadDistance);
 
         for(int idx = 0; idx < joints.Length; idx++) {
 
