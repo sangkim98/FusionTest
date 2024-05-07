@@ -4,10 +4,12 @@ using System;
 using Unity.Sentis;
 
 public class CharacterControl : MonoBehaviour {
+
     // Pose Estimator
     WebCamTexture webcamTexture;
     PoseEstimator poseEstimator;
     const int resizedSquareImageDim = 320;
+
     // Game Objects
     private List<GameObject> points3d;
     private Animator animator;
@@ -16,11 +18,17 @@ public class CharacterControl : MonoBehaviour {
     public ModelAsset twoDPoseModelAsset;
     public ModelAsset threeDPoseModelAsset;
 
+    // For Model Scaling
+    public Transform characterHeadEnd;
+    public Transform characterHip;
+
     // IK Control
     public bool ikActive = false;
     private Transform leftHandObj = null;
     private Transform rightHandObj = null;
     private Transform lookObj = null;
+    private Transform leftFootObj = null;
+    private Transform rightFootObj = null;
 
     void Start() {
 
@@ -30,28 +38,22 @@ public class CharacterControl : MonoBehaviour {
 
         webcamTexture.Play();
 
-        // Sentis initialization
+        // Sentis model initialization
         poseEstimator = new PoseEstimator(resizedSquareImageDim, ref twoDPoseModelAsset, ref threeDPoseModelAsset, BackendType.GPUCompute);
 
-        // Animations
+        // IK setup
 
         init3DKeypoints();
 
         animator = GetComponent<Animator>();
 
-        Transform headEndTransform = animator.transform.Find(
-            "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/" +
-            "mixamorig:Spine2/mixamorig:Neck/mixamorig:Head/mixamorig:HeadTop_End"
-        );
-        Transform hipTransform = animator.transform.Find(
-            "mixamorig:Hips"
-        );
+        hipHeadEndDistance = Vector3.Distance(characterHip.position, characterHeadEnd.position);
 
-        hipHeadEndDistance = Vector3.Distance(hipTransform.position, headEndTransform.position);
-
-        lookObj = GameObject.Find("point3d_9").transform;
-        rightHandObj = GameObject.Find("point3d_16").transform;
-        leftHandObj = GameObject.Find("point3d_13").transform;
+        lookObj = GameObject.Find("joint9").transform;
+        rightHandObj = GameObject.Find("joint16").transform;
+        leftHandObj = GameObject.Find("joint13").transform;
+        rightFootObj = GameObject.Find("joint3").transform;
+        leftFootObj = GameObject.Find("joint6").transform;
 
     }
 
@@ -97,6 +99,20 @@ public class CharacterControl : MonoBehaviour {
                     animator.SetIKPosition(AvatarIKGoal.RightHand, rightHandObj.position);
                     animator.SetIKRotation(AvatarIKGoal.RightHand, rightHandObj.rotation);
                 }
+                
+                if(leftFootObj != null) {
+                    animator.SetIKPositionWeight(AvatarIKGoal.LeftFoot,1);
+                    animator.SetIKRotationWeight(AvatarIKGoal.LeftFoot,1);
+                    animator.SetIKPosition(AvatarIKGoal.LeftFoot, leftFootObj.position);
+                    animator.SetIKRotation(AvatarIKGoal.LeftFoot, leftFootObj.rotation);
+                }
+
+                if(rightFootObj != null) {
+                    animator.SetIKPositionWeight(AvatarIKGoal.RightFoot,1);
+                    animator.SetIKRotationWeight(AvatarIKGoal.RightFoot,1);
+                    animator.SetIKPosition(AvatarIKGoal.RightFoot, rightFootObj.position);
+                    animator.SetIKRotation(AvatarIKGoal.RightFoot, rightFootObj.rotation);
+                }
 
             }
 
@@ -106,6 +122,10 @@ public class CharacterControl : MonoBehaviour {
                 animator.SetIKRotationWeight(AvatarIKGoal.LeftHand, 0);
                 animator.SetIKPositionWeight(AvatarIKGoal.RightHand, 0);
                 animator.SetIKRotationWeight(AvatarIKGoal.RightHand, 0);
+                animator.SetIKPositionWeight(AvatarIKGoal.LeftFoot, 0);
+                animator.SetIKRotationWeight(AvatarIKGoal.LeftFoot, 0);
+                animator.SetIKPositionWeight(AvatarIKGoal.RightFoot, 0);
+                animator.SetIKRotationWeight(AvatarIKGoal.RightFoot, 0);
                 animator.SetLookAtWeight(0);
 
             }
@@ -122,7 +142,7 @@ public class CharacterControl : MonoBehaviour {
 
             GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
 
-            sphere.name = String.Format("point3d_{0}", i);
+            sphere.name = String.Format("joint{0}", i);
 
             sphere.transform.localScale = new Vector3(0.1f,0.1f,0.1f);
             sphere.transform.localPosition = new Vector3(0,0,0);
@@ -140,11 +160,7 @@ public class CharacterControl : MonoBehaviour {
         const int rootIndex = 0;
         const int headIndex = 10;
 
-        Transform hipTransform = animator.transform.Find(
-            "mixamorig:Hips"
-        );
-
-        Vector3 delta = getRootHipDelta(hipTransform.position, joints[rootIndex]);
+        Vector3 delta = getRootHipDelta(characterHip.position, joints[rootIndex]);
         float rootHeadDistance = getRootHeadDistance(joints[rootIndex], joints[headIndex]);
         float ratio = 1.2f * (hipHeadEndDistance / rootHeadDistance);
 
