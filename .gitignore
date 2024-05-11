@@ -6,6 +6,10 @@
 /[Ll]ibrary/*
 /Logs/*
 
+# Unity Samples
+/Assets/Samples/*
+/Assets/Samples.meta
+
 # Visual Studio (Code) related
 .vs/*
 .vsconfig
