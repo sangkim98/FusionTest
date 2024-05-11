@@ -3,6 +3,8 @@ using Unity.Sentis;
 using FF = Unity.Sentis.Functional;
 using Unity.VisualScripting;
 using System;
+using System.Collections.Generic;
+using NUnit.Framework.Interfaces;
 
 public class PoseEstimator : IDisposable {
     
@@ -10,10 +12,13 @@ public class PoseEstimator : IDisposable {
 
     private IWorker twoDPoseWorker;
     private IWorker threeDPoseWorker;
+    private IBackend concatBackend;
     private BackendType backend;
-    public const int numJoints = 17;
+    private const int numJoints = 17;
+    private const int numFrames = 36;
 
     private TensorFloat inputTensor = null;
+    private TensorFloat inputTwoDTensor = null;
 
     private float iouThreshold = 0.5f;
     private float scoreThreshold = 0.5f;
@@ -27,6 +32,8 @@ public class PoseEstimator : IDisposable {
             textureTransform = new TextureTransform().SetDimensions(width: resizedSquareImageDim, height: resizedSquareImageDim, channels: 3);
 
             LoadModel(resizedSquareImageDim, ref twoDPoseModelAsset, ref threeDPoseModelAsset);
+
+            concatBackend = WorkerFactory.CreateBackend(backend);
 
             threeDJointsVector = new Vector3[numJoints];
 
@@ -57,7 +64,7 @@ public class PoseEstimator : IDisposable {
                 var joints_reshaped = joints_coords.Reshape(new int[] { 1, 1, 17, -1 });    // shape=(1,1,17,3)
                 return joints_reshaped;
             },
-            InputDef.FromModel(twoDPoseModel)[0]
+            twoDPoseModel.inputs[0]
         );
 
         /*
@@ -79,28 +86,34 @@ public class PoseEstimator : IDisposable {
                 input[..,..,..,..2] -= (float)resizedSquareImageDim / 2;
                 input[..,..,..,..2] /= (float)resizedSquareImageDim;
                 var y = input.Clone();
-                y[..,..,0,..] = (input[..,..,11,..] + input[..,..,12,..]) * 0.5f;
-                y[..,..,1,..] = input[..,..,12,..];
-                y[..,..,2,..] = input[..,..,14,..];
-                y[..,..,3,..] = input[..,..,16,..];
-                y[..,..,4,..] = input[..,..,11,..];
-                y[..,..,5,..] = input[..,..,13,..];
-                y[..,..,6,..] = input[..,..,15,..];
-                y[..,..,8,..] = (input[..,..,5,..] + input[..,..,6,..]) * 0.5f;
-                y[..,..,7,..] = (y[..,..,0,..] + y[..,..,8,..]) * 0.5f;
-                y[..,..,9,..] = input[..,..,0,..];
-                y[..,..,10,..] = (input[..,..,1,..] + input[..,..,2,..]) * 0.5f;
-                y[..,..,11,..] = input[..,..,5,..];
-                y[..,..,12,..] = input[..,..,7,..];
-                y[..,..,13,..] = input[..,..,9,..];
-                y[..,..,14,..] = input[..,..,6,..];
-                y[..,..,15,..] = input[..,..,8,..];
-                y[..,..,16,..] = input[..,..,10,..];
+                y[..,..,0..1,..] = (input[..,..,11..12,..] + input[..,..,12..13,..]) * 0.5f;
+                y[..,..,1..2,..] = input[..,..,12..13,..];
+                y[..,..,2..3,..] = input[..,..,14..15,..];
+                y[..,..,3..4,..] = input[..,..,16..,..];
+                y[..,..,4..5,..] = input[..,..,11..12,..];
+                y[..,..,5..6,..] = input[..,..,13..14,..];
+                y[..,..,6..7,..] = input[..,..,15..16,..];
+                y[..,..,8..9,..] = (input[..,..,5..6,..] + input[..,..,6..7,..]) * 0.5f;
+                y[..,..,7..8,..] = (y[..,..,0..1,..] + y[..,..,8..9,..]) * 0.5f;
+                y[..,..,9..10,..] = input[..,..,0..1,..];
+                y[..,..,10..11,..] = (input[..,..,1..2,..] + input[..,..,2..3,..]) * 0.5f;
+                y[..,..,11..12,..] = input[..,..,5..6,..];
+                y[..,..,12..13,..] = input[..,..,7..8,..];
+                y[..,..,13..14,..] = input[..,..,9..10,..];
+                y[..,..,14..15,..] = input[..,..,6..7,..];
+                y[..,..,15..16,..] = input[..,..,8..9,..];
+                y[..,..,16..,..] = input[..,..,10..11,..];
                 var output = threeDPoseModel.Forward(y)[0];
+                
+                // scale 3D outputs
                 output[..,..,..,..] *= -1;
+                output[..,..,..,..1] *= 1.8f; 
+                output[..,..,..,1..2] *= 1.3f;
+                output[..,..,..,2..] *= 2.5f;
+
                 return output;
             },
-            InputDef.FromTensor(TensorFloat.AllocNoData(new TensorShape(1,1,17,3)))
+            threeDPoseModel.inputs[0]
         );
 
         centersToCorners.Dispose();
@@ -126,7 +139,9 @@ public class PoseEstimator : IDisposable {
 
         if(twoDJointsTensor.shape[2] == numJoints && twoDJointsTensor.shape[3] == 3) {
 
-            threeDPoseWorker.Execute(twoDJointsTensor);
+            concatToPreviousTensor(twoDJointsTensor);
+
+            threeDPoseWorker.Execute(inputTwoDTensor);
 
             var threeDJointsTensor = threeDPoseWorker.PeekOutput() as TensorFloat;
 
@@ -148,6 +163,59 @@ public class PoseEstimator : IDisposable {
 
     }
 
+    private void concatToPreviousTensor(TensorFloat curr) {
+
+        if(inputTwoDTensor == null) {
+            inputTwoDTensor = new TensorFloat(curr.shape, curr.ToReadOnlyArray());
+            inputTwoDTensor.CompleteOperationsAndDownload();
+        }
+        else {
+
+            inputTwoDTensor.CompleteOperationsAndDownload();
+            var temp = new TensorFloat(inputTwoDTensor.shape, inputTwoDTensor.ToReadOnlyArray());
+
+            if(inputTwoDTensor.shape[1] < numFrames) {
+
+                inputTwoDTensor = TensorFloat.AllocNoData(new TensorShape(
+                    inputTwoDTensor.shape[0], inputTwoDTensor.shape[1]+1,
+                    inputTwoDTensor.shape[2], inputTwoDTensor.shape[3]
+                ));
+
+                concatBackend.Concat(new TensorFloat[] {curr, temp}, inputTwoDTensor, 1);
+                inputTwoDTensor.CompleteOperationsAndDownload();
+                
+            }
+            else {
+
+                inputTwoDTensor = TensorFloat.AllocNoData(new TensorShape(
+                    inputTwoDTensor.shape[0], inputTwoDTensor.shape[1],
+                    inputTwoDTensor.shape[2], inputTwoDTensor.shape[3]
+                ));
+
+                var slicedTensor = TensorFloat.AllocNoData(new TensorShape(
+                    inputTwoDTensor.shape[0], inputTwoDTensor.shape[1]-1,
+                    inputTwoDTensor.shape[2], inputTwoDTensor.shape[3]
+                ));
+
+                concatBackend.Split(temp, slicedTensor, 1, 1);
+                
+                slicedTensor.CompleteOperationsAndDownload();
+
+                concatBackend.Concat(new TensorFloat[] {curr, slicedTensor}, inputTwoDTensor, 1);
+                inputTwoDTensor.CompleteOperationsAndDownload();
+
+                slicedTensor.Dispose();
+
+                inputTwoDTensor.PrintDataPart(102, "Shape: " + inputTwoDTensor.shape + ", ");
+
+            }
+
+            temp.Dispose();
+
+        }
+
+    }
+
     public Vector3[] getThreeDPose() {
 
         return threeDJointsVector;
@@ -157,8 +225,10 @@ public class PoseEstimator : IDisposable {
     public void Dispose() {
 
         inputTensor?.Dispose();
+        inputTwoDTensor?.Dispose();
         twoDPoseWorker?.Dispose();
         threeDPoseWorker?.Dispose();
+        concatBackend?.Dispose();
 
     }
 
