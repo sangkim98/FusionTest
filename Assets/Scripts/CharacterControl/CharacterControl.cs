@@ -35,7 +35,7 @@ public class CharacterControl : MonoBehaviour {
 
         WebCamDevice[] devices = WebCamTexture.devices;
         
-        webcamTexture = new WebCamTexture(devices[0].name, 640, 360, 60);
+        webcamTexture = new WebCamTexture(devices[0].name, 640, 360, 30);
 
         webcamTexture.Play();
 
@@ -145,7 +145,7 @@ public class CharacterControl : MonoBehaviour {
 
             sphere.name = String.Format("joint{0}", i);
 
-            sphere.transform.localScale = new Vector3(0.1f,0.1f,0.1f);
+            sphere.transform.localScale = new Vector3(0.05f,0.05f,0.05f);
             sphere.transform.localPosition = new Vector3(0,0,0);
 
             sphere.transform.SetParent(transform, false);
@@ -169,6 +169,7 @@ public class CharacterControl : MonoBehaviour {
 
             joints[idx] *= ratio;
             joints[idx] += delta;
+            joints[idx].z += 0.1f;
 
         }
 
