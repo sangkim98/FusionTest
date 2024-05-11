@@ -194,6 +194,10 @@ public class CharacterControl : MonoBehaviour {
             GameObject point = points3d[idx];
             point.transform.localPosition = joints[idx];
 
+            if(idx == 16) {
+                point.transform.rotation = Quaternion.Euler(10,50,-90);
+            }
+
         }
 
     }
