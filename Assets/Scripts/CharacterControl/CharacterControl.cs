@@ -21,6 +21,7 @@ public class CharacterControl : MonoBehaviour {
     // For Model Scaling
     public Transform characterHeadEnd;
     public Transform characterHip;
+    public Transform characterRoot;
 
     // IK Control
     public bool ikActive = false;
@@ -55,6 +56,8 @@ public class CharacterControl : MonoBehaviour {
         leftHandObj = GameObject.Find("joint13").transform;
         rightFootObj = GameObject.Find("joint3").transform;
         leftFootObj = GameObject.Find("joint6").transform;
+
+        if(characterRoot == null) characterRoot = transform;
 
     }
 
@@ -148,7 +151,7 @@ public class CharacterControl : MonoBehaviour {
             sphere.transform.localScale = new Vector3(0.05f,0.05f,0.05f);
             sphere.transform.localPosition = new Vector3(0,0,0);
 
-            sphere.transform.SetParent(transform, false);
+            sphere.transform.SetParent(characterRoot, false);
 
             points3d.Add(sphere);
 
@@ -161,14 +164,19 @@ public class CharacterControl : MonoBehaviour {
         const int rootIndex = 0;
         const int headIndex = 10;
 
-        Vector3 delta = getRootHipDelta(characterHip.localPosition, joints[rootIndex]);
         float rootHeadDistance = getRootHeadDistance(joints[rootIndex], joints[headIndex]);
         float ratio = (hipHeadEndDistance / rootHeadDistance);
 
+        ratio *= 0.7f;
+
         for(int idx = 0; idx < joints.Length; idx++) {
 
-            joints[idx] *= ratio;
-            joints[idx] += delta;
+            joints[idx].x *= 1.4f;
+            joints[idx].y -= 0.1f;
+
+            if(idx == 9 || idx == 10) joints[idx].y *= 1.0f;
+            else joints[idx].y *= 1.2f;
+
             joints[idx].z += 0.1f;
 
         }
@@ -181,7 +189,7 @@ public class CharacterControl : MonoBehaviour {
 
     }
 
-    private Vector3 getRootHipDelta(Vector3 root, Vector3 hip) {
+    private Vector3 getRootCenterDelta(Vector3 root, Vector3 hip) {
 
         return root - hip;
 

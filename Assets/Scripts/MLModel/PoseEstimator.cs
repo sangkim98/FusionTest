@@ -15,7 +15,7 @@ public class PoseEstimator : IDisposable {
     private IBackend concatBackend;
     private BackendType backend;
     private const int numJoints = 17;
-    private const int numFrames = 36;
+    private const int numFrames = 60;
 
     private TensorFloat inputTensor = null;
     private TensorFloat inputTwoDTensor = null;
@@ -107,9 +107,9 @@ public class PoseEstimator : IDisposable {
                 
                 // scale 3D outputs
                 output[..,..,..,..] *= -1;
-                output[..,..,..,..1] *= 1.8f; 
-                output[..,..,..,1..2] *= 1.3f;
-                output[..,..,..,2..] *= 2.5f;
+                // output[..,..,..,..1] *= 1.8f; 
+                // output[..,..,..,1..2] *= 1.1f;
+                // output[..,..,..,2..] *= 2.5f;
 
                 return output;
             },
