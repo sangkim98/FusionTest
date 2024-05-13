@@ -105,12 +105,6 @@ public class PoseEstimator : IDisposable {
                 y[..,..,16..,..] = input[..,..,10..11,..];
                 var output = threeDPoseModel.Forward(y)[0];
                 
-                // scale 3D outputs
-                output[..,..,..,..] *= -1;
-                // output[..,..,..,..1] *= 1.8f; 
-                // output[..,..,..,1..2] *= 1.1f;
-                // output[..,..,..,2..] *= 2.5f;
-
                 return output;
             },
             threeDPoseModel.inputs[0]
@@ -205,8 +199,6 @@ public class PoseEstimator : IDisposable {
                 inputTwoDTensor.CompleteOperationsAndDownload();
 
                 slicedTensor.Dispose();
-
-                inputTwoDTensor.PrintDataPart(102, "Shape: " + inputTwoDTensor.shape + ", ");
 
             }
 
