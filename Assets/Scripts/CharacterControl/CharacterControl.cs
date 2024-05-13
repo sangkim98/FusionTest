@@ -63,18 +63,20 @@ public class CharacterControl : MonoBehaviour {
 
     void Update() {
 
-        bool goodEstimate;
+        if(webcamTexture.didUpdateThisFrame){
+            bool goodEstimate;
 
-        goodEstimate = poseEstimator.RunML(webcamTexture);
+            goodEstimate = poseEstimator.RunML(webcamTexture);
 
-        if(goodEstimate) {
+            if(goodEstimate) {
 
-            Vector3[] threeDJoints = poseEstimator.getThreeDPose();
+                Vector3[] threeDJoints = poseEstimator.getThreeDPose();
 
-            scaleTranslateJoints(threeDJoints);
+                scaleTranslateJoints(threeDJoints);
 
-            Draw3DPoints(threeDJoints);
+                Draw3DPoints(threeDJoints);
 
+            }
         }
 
     }
