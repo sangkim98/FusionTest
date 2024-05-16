@@ -19,24 +19,19 @@ public class CharacterControl : MonoBehaviour {
     public ModelAsset threeDPoseModelAsset;
 
     // IK Control
-    public bool followPose = false;
-    public bool lowerBody = false;
+    // public bool followPose = false;
+    // public bool lowerBody = false;
 
-    // For Model Scaling
+    // For joint control
     public Transform characterRoot;
-    public Transform rightHip;
-    public Transform rightKnee;
-    public Transform rightAnkle;
-    public Transform leftHip;
-    public Transform leftKnee;
-    public Transform leftAnkle;
     public Transform belly;
     public Transform neck;
     public Transform nose;
-    public Transform head;
+    public Transform leftClavicle;
     public Transform leftShoulder;
     public Transform leftElbow;
     public Transform leftWrist;
+    public Transform rightClavicle;
     public Transform rightShoulder;
     public Transform rightElbow;
     public Transform rightWrist;
@@ -79,6 +74,10 @@ public class CharacterControl : MonoBehaviour {
     private void init3DKeypoints() {
 
         targetThreeDPoints = new List<GameObject>();
+        GameObject root = new GameObject("pose_root");
+        root.transform.SetParent(characterRoot);
+        root.transform.localPosition = Vector3.zero;
+        root.transform.Rotate(0,0,0);
 
         for (int i = 0; i < 17; i++) {
 
@@ -89,7 +88,7 @@ public class CharacterControl : MonoBehaviour {
             sphere.transform.localScale = new Vector3(0.05f,0.05f,0.05f);
             sphere.transform.localPosition = new Vector3(0,0,0);
 
-            sphere.transform.SetParent(characterRoot, false);
+            sphere.transform.SetParent(root.transform, false);
 
             targetThreeDPoints.Add(sphere);
 
@@ -99,12 +98,9 @@ public class CharacterControl : MonoBehaviour {
 
     void Draw3DPoints(Vector3[] joints) {
 
-        var tempJoints = joints.Clone();
-
         Vector3 rootToBelly = fromAtoB(joints[0], joints[7]);
         Vector3 bellyToNeck = fromAtoB(joints[7], joints[8]);
         Vector3 neckToNose = fromAtoB(joints[8], joints[9]);
-        Vector3 noseToHead = fromAtoB(joints[9], joints[10]);
         Vector3 neckToLeftShoulder = fromAtoB(joints[8], joints[11]);
         Vector3 leftShoulderToElbow = fromAtoB(joints[11], joints[12]);
         Vector3 leftElbowToWrist = fromAtoB(joints[12], joints[13]);
@@ -115,7 +111,6 @@ public class CharacterControl : MonoBehaviour {
         rootToBelly.Normalize();
         bellyToNeck.Normalize();
         neckToNose.Normalize();
-        noseToHead.Normalize();
         neckToLeftShoulder.Normalize();
         leftShoulderToElbow.Normalize();
         leftElbowToWrist.Normalize();
@@ -123,18 +118,19 @@ public class CharacterControl : MonoBehaviour {
         rightShoulderToElbow.Normalize();
         rightElbowToWrist.Normalize();
 
-        joints[7] = joints[0] + rootToBelly * boneDistances[2];
-        joints[8] = joints[7] + bellyToNeck * boneDistances[3];
-        joints[9] = joints[8] + neckToNose * boneDistances[4];
-        joints[10] = joints[9] + noseToHead * boneDistances[5];
-        joints[11] = joints[8] + neckToLeftShoulder * boneDistances[9];
-        joints[12] = joints[11] + leftShoulderToElbow * boneDistances[10];
-        joints[13] = joints[12] + leftElbowToWrist * boneDistances[11];
-        joints[14] = joints[8] + neckToRightShoulder * boneDistances[6];
-        joints[15] = joints[14] + rightShoulderToElbow * boneDistances[7];
-        joints[16] = joints[15] + rightElbowToWrist * boneDistances[8];
+        joints[7] = joints[0] + rootToBelly * boneDistances[0];
+        joints[8] = joints[7] + bellyToNeck * boneDistances[1];
+        joints[9] = joints[8] + neckToNose * boneDistances[2];
+        joints[11] = joints[8] + neckToLeftShoulder * boneDistances[6];
+        joints[12] = joints[11] + leftShoulderToElbow * boneDistances[7];
+        joints[13] = joints[12] + leftElbowToWrist * boneDistances[8];
+        joints[14] = joints[8] + neckToRightShoulder * boneDistances[3];
+        joints[15] = joints[14] + rightShoulderToElbow * boneDistances[4];
+        joints[16] = joints[15] + rightElbowToWrist * boneDistances[5];
 
         for (int idx = 0; idx < joints.Length; idx++) {
+
+            if(idx == 10) continue;
 
             GameObject point = targetThreeDPoints[idx];
             point.transform.localPosition = joints[idx];
@@ -153,11 +149,68 @@ public class CharacterControl : MonoBehaviour {
 
         rigBuilder.layers.Add(new RigLayer(rig1.GetComponent<Rig>(), true));
 
-        createMultiAimConstraint("lookAt", rig1.transform);
-        createMultiAimConstraint("shoulder", rig1.transform);
-        createTwoBoneIKConstraint("leftArm", rig1.transform);
-        createTwoBoneIKConstraint("rightArm", rig1.transform);
-        createChainIKConstraint("spine", rig1.transform);
+        GameObject lookAt = createMultiAimConstraint("lookAt", rig1.transform);
+        GameObject leftArm = createTwoBoneIKConstraint("leftArm", rig1.transform);
+        GameObject rightArm = createTwoBoneIKConstraint("rightArm", rig1.transform);
+        GameObject ls = createChainIKConstraint("leftShoulder", rig1.transform);
+        GameObject rs = createChainIKConstraint("rightShoulder", rig1.transform);
+        GameObject spine = createChainIKConstraint("spine", rig1.transform);
+
+        TwoBoneIKConstraint leftArmConstraint = leftArm.GetComponent<TwoBoneIKConstraint>();
+        leftArmConstraint.data.root = leftShoulder;
+        leftArmConstraint.data.mid = leftElbow;
+        leftArmConstraint.data.tip = leftWrist;
+
+        leftArmConstraint.data.target = targetThreeDPoints[13].transform;
+        leftArmConstraint.data.hint = targetThreeDPoints[12].transform;
+
+        leftArmConstraint.data.targetPositionWeight = 1.0f;
+        leftArmConstraint.data.targetRotationWeight = 1.0f;
+        leftArmConstraint.data.hintWeight = 1.0f;
+
+        TwoBoneIKConstraint rightArmConstraint = rightArm.GetComponent<TwoBoneIKConstraint>();
+        rightArmConstraint.data.root = rightShoulder;
+        rightArmConstraint.data.mid = rightElbow;
+        rightArmConstraint.data.tip = rightWrist;
+
+        rightArmConstraint.data.target = targetThreeDPoints[16].transform;
+        rightArmConstraint.data.hint = targetThreeDPoints[15].transform;
+
+        rightArmConstraint.data.targetPositionWeight = 1.0f;
+        rightArmConstraint.data.targetRotationWeight = 1.0f;
+        rightArmConstraint.data.hintWeight = 1.0f;
+
+        MultiAimConstraint lookAtConstraint = lookAt.GetComponent<MultiAimConstraint>();
+        lookAtConstraint.data.constrainedObject = nose;
+        var sources = lookAtConstraint.data.sourceObjects;
+        sources.Add(new WeightedTransform(targetThreeDPoints[9].transform, 0.3f));
+
+        lookAtConstraint.data.sourceObjects = sources;
+        lookAtConstraint.data.aimAxis = MultiAimConstraintData.Axis.Y_NEG;
+        lookAtConstraint.data.upAxis = MultiAimConstraintData.Axis.Y;
+        lookAtConstraint.data.maintainOffset = true;
+        lookAtConstraint.data.constrainedXAxis = true;
+        lookAtConstraint.data.constrainedYAxis = true;
+        lookAtConstraint.data.constrainedZAxis = true;
+        lookAtConstraint.data.limits = new Vector2(-60,60);
+
+        ChainIKConstraint lsConstraint = ls.GetComponent<ChainIKConstraint>();
+        lsConstraint.data.root = belly;
+        lsConstraint.data.tip = leftShoulder;
+        lsConstraint.data.target = targetThreeDPoints[11].transform;
+        lsConstraint.data.maxIterations = 10;
+        lsConstraint.data.tolerance = 0.001f;
+        lsConstraint.data.chainRotationWeight = 0.5f;
+
+        ChainIKConstraint rsConstraint = rs.GetComponent<ChainIKConstraint>();
+        rsConstraint.data.root = belly;
+        rsConstraint.data.tip = rightShoulder;
+        rsConstraint.data.target = targetThreeDPoints[14].transform;
+        rsConstraint.data.maxIterations = 10;
+        rsConstraint.data.tolerance = 0.001f;
+        rsConstraint.data.chainRotationWeight = 0.5f;
+
+        rigBuilder.Build();
 
         boneDistances = saveBoneDistances();
 
@@ -167,22 +220,15 @@ public class CharacterControl : MonoBehaviour {
 
         float[] bones = new float[16];
 
-        bones[0] = distAtoB(characterRoot.transform.position, rightHip.transform.position);
-        bones[1] = distAtoB(characterRoot.transform.position, leftHip.transform.position);
-        bones[2] = distAtoB(characterRoot.transform.position, belly.transform.position);
-        bones[3] = distAtoB(belly.transform.position, neck.transform.position);
-        bones[4] = distAtoB(neck.transform.position, nose.transform.position);
-        bones[5] = distAtoB(nose.transform.position, head.transform.position);
-        bones[6] = distAtoB(neck.transform.position, rightShoulder.transform.position);
-        bones[7] = distAtoB(rightShoulder.transform.position, rightElbow.transform.position);
-        bones[8] = distAtoB(rightElbow.transform.position, rightWrist.transform.position);
-        bones[9] = distAtoB(neck.transform.position, leftShoulder.transform.position);
-        bones[10] = distAtoB(leftShoulder.transform.position, leftElbow.transform.position);
-        bones[11] = distAtoB(leftElbow.transform.position, leftWrist.transform.position);
-
-        for(int i = 0; i < 12; i++) {
-            Debug.Log(bones[i]);
-        }
+        bones[0] = distAtoB(characterRoot.transform.position, belly.transform.position);
+        bones[1] = distAtoB(belly.transform.position, neck.transform.position);
+        bones[2] = distAtoB(neck.transform.position, nose.transform.position);
+        bones[3] = distAtoB(neck.transform.position, rightShoulder.transform.position);
+        bones[4] = distAtoB(rightShoulder.transform.position, rightElbow.transform.position);
+        bones[5] = distAtoB(rightElbow.transform.position, rightWrist.transform.position);
+        bones[6] = distAtoB(neck.transform.position, leftShoulder.transform.position);
+        bones[7] = distAtoB(leftShoulder.transform.position, leftElbow.transform.position);
+        bones[8] = distAtoB(leftElbow.transform.position, leftWrist.transform.position);
 
         return bones;
 
