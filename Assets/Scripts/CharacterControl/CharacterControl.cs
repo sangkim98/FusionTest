@@ -101,6 +101,39 @@ public class CharacterControl : MonoBehaviour {
 
     void Draw3DPoints(Vector3[] joints) {
 
+        Vector3 rootToBelly = fromAtoB(joints[0], joints[7]);
+        Vector3 bellyToNeck = fromAtoB(joints[7], joints[8]);
+        Vector3 neckToNose = fromAtoB(joints[8], joints[9]);
+        Vector3 noseToHead = fromAtoB(joints[9], joints[10]);
+        Vector3 neckToLeftShoulder = fromAtoB(joints[8], joints[11]);
+        Vector3 leftShoulderToElbow = fromAtoB(joints[11], joints[12]);
+        Vector3 leftElbowToWrist = fromAtoB(joints[12], joints[13]);
+        Vector3 neckToRightShoulder = fromAtoB(joints[8], joints[14]);
+        Vector3 rightShoulderToElbow = fromAtoB(joints[14], joints[15]);
+        Vector3 rightElbowToWrist = fromAtoB(joints[15], joints[16]);
+
+        rootToBelly.Normalize();
+        bellyToNeck.Normalize();
+        neckToNose.Normalize();
+        noseToHead.Normalize();
+        neckToLeftShoulder.Normalize();
+        leftShoulderToElbow.Normalize();
+        leftElbowToWrist.Normalize();
+        neckToRightShoulder.Normalize();
+        rightShoulderToElbow.Normalize();
+        rightElbowToWrist.Normalize();
+
+        joints[7] = joints[0] + rootToBelly * boneDistances[2];
+        joints[8] = joints[7] + bellyToNeck * boneDistances[3];
+        joints[9] = joints[8] + neckToNose * boneDistances[4];
+        joints[10] = joints[9] + noseToHead * boneDistances[5];
+        joints[11] = joints[8] + neckToLeftShoulder * boneDistances[9];
+        joints[12] = joints[11] + leftShoulderToElbow * boneDistances[10];
+        joints[13] = joints[12] + leftElbowToWrist * boneDistances[11];
+        joints[14] = joints[8] + neckToRightShoulder * boneDistances[6];
+        joints[15] = joints[14] + rightShoulderToElbow * boneDistances[7];
+        joints[16] = joints[15] + rightElbowToWrist * boneDistances[8];
+
         for (int idx = 0; idx < joints.Length; idx++) {
 
             GameObject point = targetThreeDPoints[idx];
@@ -134,9 +167,40 @@ public class CharacterControl : MonoBehaviour {
 
         float[] bones = new float[16];
 
-        
+        bones[0] = distAtoB(root.transform.localPosition, rightHip.transform.localPosition);
+        bones[1] = distAtoB(root.transform.localPosition, leftHip.transform.localPosition);
+        bones[2] = distAtoB(root.transform.localPosition, belly.transform.localPosition);
+        bones[3] = distAtoB(belly.transform.localPosition, neck.transform.localPosition);
+        bones[4] = distAtoB(neck.transform.localPosition, nose.transform.localPosition);
+        bones[5] = distAtoB(nose.transform.localPosition, head.transform.localPosition);
+        bones[6] = distAtoB(neck.transform.localPosition, rightShoulder.transform.localPosition);
+        bones[7] = distAtoB(rightShoulder.transform.localPosition, rightElbow.transform.localPosition);
+        bones[8] = distAtoB(rightElbow.transform.localPosition, rightWrist.transform.localPosition);
+        bones[9] = distAtoB(neck.transform.localPosition, leftShoulder.transform.localPosition);
+        bones[10] = distAtoB(leftShoulder.transform.localPosition, leftElbow.transform.localPosition);
+        bones[11] = distAtoB(leftElbow.transform.localPosition, leftWrist.transform.localPosition);
+
+        for(int i = 0; i < 12; i++) {
+            Debug.Log(bones[i]);
+        }
 
         return bones;
+
+    }
+
+    private float distAtoB(Vector3 a, Vector3 b) {
+
+        float dist = Vector3.Distance(a,b);
+
+        return dist;
+
+    }
+
+    private Vector3 fromAtoB(Vector3 a, Vector3 b) {
+
+        Vector3 ab = b - a;
+
+        return ab;
 
     }
 
