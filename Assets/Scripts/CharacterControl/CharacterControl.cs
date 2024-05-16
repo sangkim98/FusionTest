@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System;
 using Unity.Sentis;
 using UnityEngine.Animations.Rigging;
+using DuloGames.UI.Tweens;
 
 public class CharacterControl : MonoBehaviour {
 
@@ -21,7 +22,8 @@ public class CharacterControl : MonoBehaviour {
     // IK Control
     // public bool followPose = false;
     // public bool lowerBody = false;
-
+    [SerializeField, Range(0,1)] public float weight = 1.0f;
+    private Rig myrig;
     // For joint control
     public Transform characterRoot;
     public Transform belly;
@@ -69,6 +71,8 @@ public class CharacterControl : MonoBehaviour {
             Draw3DPoints(threeDJoints);
 
         }
+
+        myrig.weight = weight;
 
     }
     private void init3DKeypoints() {
@@ -143,7 +147,8 @@ public class CharacterControl : MonoBehaviour {
 
         RigBuilder rigBuilder = gameObject.AddComponent<RigBuilder>();
         GameObject rig1 = new GameObject("Rig1");
-        rig1.AddComponent<Rig>();
+        myrig = rig1.AddComponent<Rig>();
+        myrig.weight = weight;
 
         rig1.transform.SetParent(gameObject.transform);
 
