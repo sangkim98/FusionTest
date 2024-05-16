@@ -18,14 +18,12 @@ public class CharacterControl : MonoBehaviour {
     public ModelAsset twoDPoseModelAsset;
     public ModelAsset threeDPoseModelAsset;
 
-    // For Model Scaling
-    public Transform characterRoot;
-
     // IK Control
     public bool followPose = false;
     public bool lowerBody = false;
 
-    public Transform root;
+    // For Model Scaling
+    public Transform characterRoot;
     public Transform rightHip;
     public Transform rightKnee;
     public Transform rightAnkle;
@@ -101,6 +99,8 @@ public class CharacterControl : MonoBehaviour {
 
     void Draw3DPoints(Vector3[] joints) {
 
+        var tempJoints = joints.Clone();
+
         Vector3 rootToBelly = fromAtoB(joints[0], joints[7]);
         Vector3 bellyToNeck = fromAtoB(joints[7], joints[8]);
         Vector3 neckToNose = fromAtoB(joints[8], joints[9]);
@@ -167,18 +167,18 @@ public class CharacterControl : MonoBehaviour {
 
         float[] bones = new float[16];
 
-        bones[0] = distAtoB(root.transform.localPosition, rightHip.transform.localPosition);
-        bones[1] = distAtoB(root.transform.localPosition, leftHip.transform.localPosition);
-        bones[2] = distAtoB(root.transform.localPosition, belly.transform.localPosition);
-        bones[3] = distAtoB(belly.transform.localPosition, neck.transform.localPosition);
-        bones[4] = distAtoB(neck.transform.localPosition, nose.transform.localPosition);
-        bones[5] = distAtoB(nose.transform.localPosition, head.transform.localPosition);
-        bones[6] = distAtoB(neck.transform.localPosition, rightShoulder.transform.localPosition);
-        bones[7] = distAtoB(rightShoulder.transform.localPosition, rightElbow.transform.localPosition);
-        bones[8] = distAtoB(rightElbow.transform.localPosition, rightWrist.transform.localPosition);
-        bones[9] = distAtoB(neck.transform.localPosition, leftShoulder.transform.localPosition);
-        bones[10] = distAtoB(leftShoulder.transform.localPosition, leftElbow.transform.localPosition);
-        bones[11] = distAtoB(leftElbow.transform.localPosition, leftWrist.transform.localPosition);
+        bones[0] = distAtoB(characterRoot.transform.position, rightHip.transform.position);
+        bones[1] = distAtoB(characterRoot.transform.position, leftHip.transform.position);
+        bones[2] = distAtoB(characterRoot.transform.position, belly.transform.position);
+        bones[3] = distAtoB(belly.transform.position, neck.transform.position);
+        bones[4] = distAtoB(neck.transform.position, nose.transform.position);
+        bones[5] = distAtoB(nose.transform.position, head.transform.position);
+        bones[6] = distAtoB(neck.transform.position, rightShoulder.transform.position);
+        bones[7] = distAtoB(rightShoulder.transform.position, rightElbow.transform.position);
+        bones[8] = distAtoB(rightElbow.transform.position, rightWrist.transform.position);
+        bones[9] = distAtoB(neck.transform.position, leftShoulder.transform.position);
+        bones[10] = distAtoB(leftShoulder.transform.position, leftElbow.transform.position);
+        bones[11] = distAtoB(leftElbow.transform.position, leftWrist.transform.position);
 
         for(int i = 0; i < 12; i++) {
             Debug.Log(bones[i]);
