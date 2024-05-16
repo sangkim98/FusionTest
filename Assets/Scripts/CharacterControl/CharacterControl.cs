@@ -89,7 +89,7 @@ public class CharacterControl : MonoBehaviour {
             sphere.transform.localScale = new Vector3(0.05f,0.05f,0.05f);
             sphere.transform.localPosition = new Vector3(0,0,0);
 
-            sphere.transform.SetParent(transform, false);
+            sphere.transform.SetParent(characterRoot, false);
 
             targetThreeDPoints.Add(sphere);
 
