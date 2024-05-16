@@ -3,8 +3,6 @@ using Unity.Sentis;
 using FF = Unity.Sentis.Functional;
 using Unity.VisualScripting;
 using System;
-using System.Collections.Generic;
-using NUnit.Framework.Interfaces;
 
 public class PoseEstimator : IDisposable {
     
