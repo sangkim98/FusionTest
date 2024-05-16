@@ -43,6 +43,8 @@ public class CharacterControl : MonoBehaviour {
     public Transform rightElbow;
     public Transform rightWrist;
 
+    private float[] boneDistances;
+
     void Start() {
 
         WebCamDevice[] devices = WebCamTexture.devices;
@@ -123,6 +125,18 @@ public class CharacterControl : MonoBehaviour {
         createTwoBoneIKConstraint("leftArm", rig1.transform);
         createTwoBoneIKConstraint("rightArm", rig1.transform);
         createChainIKConstraint("spine", rig1.transform);
+
+        boneDistances = saveBoneDistances();
+
+    }
+
+    private float[] saveBoneDistances() {
+
+        float[] bones = new float[16];
+
+        
+
+        return bones;
 
     }
 
