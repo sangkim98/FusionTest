@@ -170,8 +170,8 @@ public class CharacterControl : MonoBehaviour {
         leftArmConstraint.data.hint = targetThreeDPoints[12].transform;
 
         leftArmConstraint.data.targetPositionWeight = 1.0f;
-        leftArmConstraint.data.targetRotationWeight = 1.0f;
-        leftArmConstraint.data.hintWeight = 1.0f;
+        leftArmConstraint.data.targetRotationWeight = 0.3f;
+        leftArmConstraint.data.hintWeight = 0.5f;
 
         TwoBoneIKConstraint rightArmConstraint = rightArm.GetComponent<TwoBoneIKConstraint>();
         rightArmConstraint.data.root = rightShoulder;
@@ -182,8 +182,8 @@ public class CharacterControl : MonoBehaviour {
         rightArmConstraint.data.hint = targetThreeDPoints[15].transform;
 
         rightArmConstraint.data.targetPositionWeight = 1.0f;
-        rightArmConstraint.data.targetRotationWeight = 1.0f;
-        rightArmConstraint.data.hintWeight = 1.0f;
+        rightArmConstraint.data.targetRotationWeight = 0.3f;
+        rightArmConstraint.data.hintWeight = 0.5f;
 
         MultiAimConstraint lookAtConstraint = lookAt.GetComponent<MultiAimConstraint>();
         lookAtConstraint.data.constrainedObject = nose;
@@ -203,7 +203,7 @@ public class CharacterControl : MonoBehaviour {
         lsConstraint.data.root = belly;
         lsConstraint.data.tip = leftShoulder;
         lsConstraint.data.target = targetThreeDPoints[11].transform;
-        lsConstraint.data.maxIterations = 10;
+        lsConstraint.data.maxIterations = 15;
         lsConstraint.data.tolerance = 0.001f;
         lsConstraint.data.chainRotationWeight = 0.5f;
 
@@ -211,7 +211,7 @@ public class CharacterControl : MonoBehaviour {
         rsConstraint.data.root = belly;
         rsConstraint.data.tip = rightShoulder;
         rsConstraint.data.target = targetThreeDPoints[14].transform;
-        rsConstraint.data.maxIterations = 10;
+        rsConstraint.data.maxIterations = 15;
         rsConstraint.data.tolerance = 0.001f;
         rsConstraint.data.chainRotationWeight = 0.5f;
 
@@ -230,10 +230,10 @@ public class CharacterControl : MonoBehaviour {
         bones[2] = distAtoB(neck.transform.position, nose.transform.position);
         bones[3] = distAtoB(neck.transform.position, rightShoulder.transform.position);
         bones[4] = distAtoB(rightShoulder.transform.position, rightElbow.transform.position);
-        bones[5] = distAtoB(rightElbow.transform.position, rightWrist.transform.position);
+        bones[5] = 1.3f * distAtoB(rightElbow.transform.position, rightWrist.transform.position);
         bones[6] = distAtoB(neck.transform.position, leftShoulder.transform.position);
         bones[7] = distAtoB(leftShoulder.transform.position, leftElbow.transform.position);
-        bones[8] = distAtoB(leftElbow.transform.position, leftWrist.transform.position);
+        bones[8] = 1.3f * distAtoB(leftElbow.transform.position, leftWrist.transform.position);
 
         return bones;
 

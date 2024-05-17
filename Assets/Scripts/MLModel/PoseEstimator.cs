@@ -13,7 +13,7 @@ public class PoseEstimator : IDisposable {
     private IBackend concatBackend;
     private BackendType backend;
     private const int numJoints = 17;
-    private const int numFrames = 78;
+    private const int numFrames = 48;
 
     private TensorFloat inputTensor = null;
     private TensorFloat inputTwoDTensor = null;
@@ -67,7 +67,7 @@ public class PoseEstimator : IDisposable {
 
         /*
             COCO:
-            0: nose 1: Leye 2: Reye 3: Lear 4Rear
+            0: nose 1: Leye 2: Reye 3: Lear 4: Rear
             5: Lsho 6: Rsho 7: Lelb 8: Relb 9: Lwri
             10: Rwri 11: Lhip 12: Rhip 13: Lkne 14: Rkne
             15: Lank 16: Rank
@@ -101,12 +101,13 @@ public class PoseEstimator : IDisposable {
                 y[..,..,14..15,..] = input[..,..,6..7,..];
                 y[..,..,15..16,..] = input[..,..,8..9,..];
                 y[..,..,16..,..] = input[..,..,10..11,..];
-                var output = threeDPoseModel.Forward(y)[0];
+                var initialOutput = threeDPoseModel.Forward(y)[0];
                 
-                // scale 3D outputs
-                output[..,..,..,..] *= -1;
+                // Invert all axes of 3D outputs
+                initialOutput[..,..,..,..] *= -1;
+                var output = FF.Interpolate(initialOutput, new int[] { 1, numFrames/2, 17, 3 });
 
-                return output;
+                return initialOutput;
             },
             threeDPoseModel.inputs[0]
         );
