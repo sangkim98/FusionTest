@@ -171,7 +171,7 @@ public class CharacterControl : MonoBehaviour {
 
         leftArmConstraint.data.targetPositionWeight = 1.0f;
         leftArmConstraint.data.targetRotationWeight = 0.3f;
-        leftArmConstraint.data.hintWeight = 0.5f;
+        leftArmConstraint.data.hintWeight = 0.3f;
 
         TwoBoneIKConstraint rightArmConstraint = rightArm.GetComponent<TwoBoneIKConstraint>();
         rightArmConstraint.data.root = rightShoulder;
@@ -183,7 +183,7 @@ public class CharacterControl : MonoBehaviour {
 
         rightArmConstraint.data.targetPositionWeight = 1.0f;
         rightArmConstraint.data.targetRotationWeight = 0.3f;
-        rightArmConstraint.data.hintWeight = 0.5f;
+        rightArmConstraint.data.hintWeight = 0.3f;
 
         MultiAimConstraint lookAtConstraint = lookAt.GetComponent<MultiAimConstraint>();
         lookAtConstraint.data.constrainedObject = nose;
@@ -206,6 +206,7 @@ public class CharacterControl : MonoBehaviour {
         lsConstraint.data.maxIterations = 15;
         lsConstraint.data.tolerance = 0.001f;
         lsConstraint.data.chainRotationWeight = 0.5f;
+        lsConstraint.data.tipRotationWeight = 0.5f;
 
         ChainIKConstraint rsConstraint = rs.GetComponent<ChainIKConstraint>();
         rsConstraint.data.root = belly;
@@ -214,6 +215,7 @@ public class CharacterControl : MonoBehaviour {
         rsConstraint.data.maxIterations = 15;
         rsConstraint.data.tolerance = 0.001f;
         rsConstraint.data.chainRotationWeight = 0.5f;
+        rsConstraint.data.tipRotationWeight = 0.5f;
 
         rigBuilder.Build();
 
@@ -229,11 +231,11 @@ public class CharacterControl : MonoBehaviour {
         bones[1] = distAtoB(belly.transform.position, neck.transform.position);
         bones[2] = distAtoB(neck.transform.position, nose.transform.position);
         bones[3] = distAtoB(neck.transform.position, rightShoulder.transform.position);
-        bones[4] = distAtoB(rightShoulder.transform.position, rightElbow.transform.position);
-        bones[5] = 1.3f * distAtoB(rightElbow.transform.position, rightWrist.transform.position);
+        bones[4] = 1.2f * distAtoB(rightShoulder.transform.position, rightElbow.transform.position);
+        bones[5] = 1.2f * distAtoB(rightElbow.transform.position, rightWrist.transform.position);
         bones[6] = distAtoB(neck.transform.position, leftShoulder.transform.position);
-        bones[7] = distAtoB(leftShoulder.transform.position, leftElbow.transform.position);
-        bones[8] = 1.3f * distAtoB(leftElbow.transform.position, leftWrist.transform.position);
+        bones[7] = 1.2f * distAtoB(leftShoulder.transform.position, leftElbow.transform.position);
+        bones[8] = 1.2f * distAtoB(leftElbow.transform.position, leftWrist.transform.position);
 
         return bones;
 

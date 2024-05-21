@@ -13,7 +13,7 @@ public class PoseEstimator : IDisposable {
     private IBackend concatBackend;
     private BackendType backend;
     private const int numJoints = 17;
-    private const int numFrames = 48;
+    private const int numFrames = 96;
 
     private TensorFloat inputTensor = null;
     private TensorFloat inputTwoDTensor = null;
@@ -105,6 +105,9 @@ public class PoseEstimator : IDisposable {
                 
                 // Invert all axes of 3D outputs
                 initialOutput[..,..,..,..] *= -1;
+                initialOutput[..,..,..,..2] = initialOutput[..,..,..,..2] * 640 / 2;
+                initialOutput[..,..,..,2..] = initialOutput[..,..,..,2..] * 640 / 2;
+
                 var output = FF.Interpolate(initialOutput, new int[] { 1, numFrames/2, 17, 3 });
 
                 return initialOutput;
@@ -201,8 +204,6 @@ public class PoseEstimator : IDisposable {
                 inputTwoDTensor.CompleteOperationsAndDownload();
 
                 slicedTensor.Dispose();
-
-                inputTwoDTensor.PrintDataPart(102, "Shape: " + inputTwoDTensor.shape + ", ");
 
             }
 
