@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using System;
 using Unity.Sentis;
 using UnityEngine.Animations.Rigging;
-using DuloGames.UI.Tweens;
+using UnityEngine.Animations;
+using System.Drawing;
 
 public class CharacterControl : MonoBehaviour {
 
@@ -23,19 +24,22 @@ public class CharacterControl : MonoBehaviour {
     // public bool followPose = false;
     // public bool lowerBody = false;
     [SerializeField, Range(0,1)] public float weight = 1.0f;
-    private Rig myrig;
+    private Rig core;
+    private Rig arms;
     // For joint control
     public Transform characterRoot;
     public Transform belly;
+    public Transform spine;
+    public Transform head;
     public Transform neck;
     public Transform nose;
-    public Transform leftClavicle;
     public Transform leftShoulder;
-    public Transform leftElbow;
+    public Transform leftArm;
+    public Transform leftForeArm;
     public Transform leftWrist;
-    public Transform rightClavicle;
     public Transform rightShoulder;
-    public Transform rightElbow;
+    public Transform rightArm;
+    public Transform rightForeArm;
     public Transform rightWrist;
 
     private float[] boneDistances;
@@ -72,7 +76,8 @@ public class CharacterControl : MonoBehaviour {
 
         }
 
-        myrig.weight = weight;
+        core.weight = weight;
+        arms.weight = weight;
 
     }
     private void init3DKeypoints() {
@@ -83,7 +88,7 @@ public class CharacterControl : MonoBehaviour {
         root.transform.localPosition = Vector3.zero;
         root.transform.Rotate(0,0,0);
 
-        for (int i = 0; i < 17; i++) {
+        for (int i = 0; i <= 18; i++) {
 
             GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
 
@@ -128,9 +133,11 @@ public class CharacterControl : MonoBehaviour {
         joints[11] = joints[8] + neckToLeftShoulder * boneDistances[6];
         joints[12] = joints[11] + leftShoulderToElbow * boneDistances[7];
         joints[13] = joints[12] + leftElbowToWrist * boneDistances[8];
+        var leftHandPoint = joints[12] + 1.2f * leftElbowToWrist * boneDistances[8];
         joints[14] = joints[8] + neckToRightShoulder * boneDistances[3];
         joints[15] = joints[14] + rightShoulderToElbow * boneDistances[4];
         joints[16] = joints[15] + rightElbowToWrist * boneDistances[5];
+        var rightHandPoint = joints[15] + 1.2f * rightElbowToWrist * boneDistances[5];
 
         for (int idx = 0; idx < joints.Length; idx++) {
 
@@ -141,82 +148,207 @@ public class CharacterControl : MonoBehaviour {
 
         }
 
+        targetThreeDPoints[17].transform.localPosition = leftHandPoint;
+        targetThreeDPoints[18].transform.localPosition = rightHandPoint;
+
     }
 
     void SetupRig() {
 
         RigBuilder rigBuilder = gameObject.AddComponent<RigBuilder>();
-        GameObject rig1 = new GameObject("Rig1");
-        myrig = rig1.AddComponent<Rig>();
-        myrig.weight = weight;
+        GameObject rig_core = new GameObject("Core Rig");
+        GameObject rig_arms = new GameObject("Arm Rig");
+        core = rig_core.AddComponent<Rig>();
+        arms = rig_arms.AddComponent<Rig>();
+        core.weight = weight;
+        arms.weight = weight;
 
-        rig1.transform.SetParent(gameObject.transform);
+        rig_core.transform.SetParent(gameObject.transform);
+        rig_arms.transform.SetParent(gameObject.transform);
 
-        rigBuilder.layers.Add(new RigLayer(rig1.GetComponent<Rig>(), true));
+        rigBuilder.layers.Add(new RigLayer(core.GetComponent<Rig>(), true));
+        rigBuilder.layers.Add(new RigLayer(arms.GetComponent<Rig>(), true));
 
-        GameObject lookAt = createMultiAimConstraint("lookAt", rig1.transform);
-        GameObject leftArm = createTwoBoneIKConstraint("leftArm", rig1.transform);
-        GameObject rightArm = createTwoBoneIKConstraint("rightArm", rig1.transform);
-        GameObject ls = createChainIKConstraint("leftShoulder", rig1.transform);
-        GameObject rs = createChainIKConstraint("rightShoulder", rig1.transform);
-        GameObject spine = createChainIKConstraint("spine", rig1.transform);
+        // Setup Core Rig
+        GameObject spineControl = new GameObject("spineControl");
+        GameObject lookAt = new GameObject("lookAt");
+        GameObject neckControl = new GameObject("neckControl");
 
-        TwoBoneIKConstraint leftArmConstraint = leftArm.GetComponent<TwoBoneIKConstraint>();
-        leftArmConstraint.data.root = leftShoulder;
-        leftArmConstraint.data.mid = leftElbow;
-        leftArmConstraint.data.tip = leftWrist;
+        spineControl.transform.SetParent(rig_core.transform);
+        lookAt.transform.SetParent(spineControl.transform);
+        neckControl.transform.SetParent(spineControl.transform);
 
-        leftArmConstraint.data.target = targetThreeDPoints[13].transform;
-        leftArmConstraint.data.hint = targetThreeDPoints[12].transform;
+        // Main Spine Constraints
+        var spine_chainIK = spineControl.AddComponent<ChainIKConstraint>();
+        var spine_multiAim = spineControl.AddComponent<MultiAimConstraint>();
+        var spine_multiRotation = spineControl.AddComponent<MultiRotationConstraint>();
+        // Chain IK
+        spine_chainIK.data.root = belly;
+        spine_chainIK.data.tip = neck;
+        spine_chainIK.data.target = targetThreeDPoints[8].transform;
+        spine_chainIK.data.maxIterations = 15;
+        spine_chainIK.data.tolerance = 0.0001f;
+        spine_chainIK.data.chainRotationWeight = 0.0f;
+        spine_chainIK.data.tipRotationWeight = 0.0f;
+        // Multi-Aim
+        spine_multiAim.data.constrainedObject = belly;
 
-        leftArmConstraint.data.targetPositionWeight = 1.0f;
-        leftArmConstraint.data.targetRotationWeight = 0.3f;
-        leftArmConstraint.data.hintWeight = 0.3f;
+        var sources1 = spine_multiAim.data.sourceObjects;
+        sources1.Add(new WeightedTransform(targetThreeDPoints[11].transform, 1.0f));
+        sources1.Add(new WeightedTransform(targetThreeDPoints[14].transform, 1.0f));
+        spine_multiAim.data.sourceObjects = sources1;
 
-        TwoBoneIKConstraint rightArmConstraint = rightArm.GetComponent<TwoBoneIKConstraint>();
-        rightArmConstraint.data.root = rightShoulder;
-        rightArmConstraint.data.mid = rightElbow;
-        rightArmConstraint.data.tip = rightWrist;
+        spine_multiAim.data.aimAxis = MultiAimConstraintData.Axis.Z;
+        spine_multiAim.data.upAxis = MultiAimConstraintData.Axis.Y;
+        spine_multiAim.data.maintainOffset = false;
+        spine_multiAim.data.constrainedXAxis = true;
+        spine_multiAim.data.constrainedYAxis = true;
+        spine_multiAim.data.constrainedZAxis = true;
+        spine_multiAim.data.limits = new Vector2(-60,60);
+        // Multi-Rotation
+        
 
-        rightArmConstraint.data.target = targetThreeDPoints[16].transform;
-        rightArmConstraint.data.hint = targetThreeDPoints[15].transform;
+        // Look At Contraints
+        var lookAt_multiAim = lookAt.AddComponent<MultiAimConstraint>();
+        lookAt_multiAim.weight = 1.0f;
+        lookAt_multiAim.data.constrainedObject = neck;
+        lookAt_multiAim.data.aimAxis = MultiAimConstraintData.Axis.Z;
+        lookAt_multiAim.data.upAxis = MultiAimConstraintData.Axis.Y;
 
-        rightArmConstraint.data.targetPositionWeight = 1.0f;
-        rightArmConstraint.data.targetRotationWeight = 0.3f;
-        rightArmConstraint.data.hintWeight = 0.3f;
+        var sources2 = lookAt_multiAim.data.sourceObjects;
+        sources2.Add(new WeightedTransform(targetThreeDPoints[9].transform, 1.0f));
+        lookAt_multiAim.data.sourceObjects = sources2;
 
-        MultiAimConstraint lookAtConstraint = lookAt.GetComponent<MultiAimConstraint>();
-        lookAtConstraint.data.constrainedObject = nose;
-        var sources = lookAtConstraint.data.sourceObjects;
-        sources.Add(new WeightedTransform(targetThreeDPoints[9].transform, 0.3f));
+        lookAt_multiAim.data.maintainOffset = false;
+        lookAt_multiAim.data.constrainedXAxis = true;
+        lookAt_multiAim.data.constrainedYAxis = true;
+        lookAt_multiAim.data.constrainedZAxis = true;
+        lookAt_multiAim.data.limits = new Vector2(-60,60);
 
-        lookAtConstraint.data.sourceObjects = sources;
-        lookAtConstraint.data.aimAxis = MultiAimConstraintData.Axis.Y_NEG;
-        lookAtConstraint.data.upAxis = MultiAimConstraintData.Axis.Y;
-        lookAtConstraint.data.maintainOffset = true;
-        lookAtConstraint.data.constrainedXAxis = true;
-        lookAtConstraint.data.constrainedYAxis = true;
-        lookAtConstraint.data.constrainedZAxis = true;
-        lookAtConstraint.data.limits = new Vector2(-60,60);
+        // Neck Contraints
+        var neck_twoBone = neckControl.AddComponent<TwoBoneIKConstraint>();
 
-        ChainIKConstraint lsConstraint = ls.GetComponent<ChainIKConstraint>();
-        lsConstraint.data.root = belly;
-        lsConstraint.data.tip = leftShoulder;
-        lsConstraint.data.target = targetThreeDPoints[11].transform;
-        lsConstraint.data.maxIterations = 15;
-        lsConstraint.data.tolerance = 0.001f;
-        lsConstraint.data.chainRotationWeight = 0.5f;
-        lsConstraint.data.tipRotationWeight = 0.5f;
+        neck_twoBone.data.root = spine;
+        neck_twoBone.data.mid = neck;
+        neck_twoBone.data.tip = head;
 
-        ChainIKConstraint rsConstraint = rs.GetComponent<ChainIKConstraint>();
-        rsConstraint.data.root = belly;
-        rsConstraint.data.tip = rightShoulder;
-        rsConstraint.data.target = targetThreeDPoints[14].transform;
-        rsConstraint.data.maxIterations = 15;
-        rsConstraint.data.tolerance = 0.001f;
-        rsConstraint.data.chainRotationWeight = 0.5f;
-        rsConstraint.data.tipRotationWeight = 0.5f;
+        neck_twoBone.data.target = targetThreeDPoints[9].transform;
+        neck_twoBone.data.hint = targetThreeDPoints[8].transform;
 
+        neck_twoBone.data.targetPositionWeight = 1.0f;
+        neck_twoBone.data.targetRotationWeight = 0.0f;
+        neck_twoBone.data.hintWeight = 1.0f;
+
+        // Setup Arm Rig
+        GameObject leftShoulderControl = new GameObject("leftShoulderControl");
+        GameObject leftArmControl = new GameObject("leftArmControl");
+        GameObject leftHandControl = new GameObject("leftHandControl");
+        GameObject rightShoulderControl = new GameObject("rightShoulderControl");
+        GameObject rightArmControl = new GameObject("rightArmControl");
+        GameObject rightHandControl = new GameObject("rightHandControl");
+
+        leftShoulderControl.transform.SetParent(rig_arms.transform);
+        leftArmControl.transform.SetParent(leftShoulderControl.transform);
+        leftHandControl.transform.SetParent(leftArmControl.transform);
+
+        rightShoulderControl.transform.SetParent(rig_arms.transform);
+        rightArmControl.transform.SetParent(rightShoulderControl.transform);
+        rightHandControl.transform.SetParent(rightArmControl.transform);
+
+        // Setup Left
+        // Left Shoulder
+        var leftShoulder_twoBone = leftShoulderControl.AddComponent<TwoBoneIKConstraint>();
+
+        leftShoulder_twoBone.data.root = leftShoulder;
+        leftShoulder_twoBone.data.mid = leftArm;
+        leftShoulder_twoBone.data.tip = leftForeArm;
+
+        leftShoulder_twoBone.data.target = targetThreeDPoints[12].transform;
+        leftShoulder_twoBone.data.hint = targetThreeDPoints[11].transform;
+
+        leftShoulder_twoBone.data.targetPositionWeight = 0.2f;
+        leftShoulder_twoBone.data.targetRotationWeight = 0.0f;
+        leftShoulder_twoBone.data.hintWeight = 0.7f;
+
+        // Left Arm
+        var leftArm_twoBone = leftArmControl.AddComponent<TwoBoneIKConstraint>();
+
+        leftArm_twoBone.data.root = leftArm;
+        leftArm_twoBone.data.mid = leftForeArm;
+        leftArm_twoBone.data.tip = leftWrist;
+
+        leftArm_twoBone.data.target = targetThreeDPoints[13].transform;
+        leftArm_twoBone.data.hint = targetThreeDPoints[12].transform;
+
+        leftArm_twoBone.data.targetPositionWeight = 1.0f;
+        leftArm_twoBone.data.targetRotationWeight = 0.0f;
+        leftArm_twoBone.data.hintWeight = 1.0f;
+
+        // Left Hand
+        var leftHand_multiAim = leftHandControl.AddComponent<MultiAimConstraint>();
+
+        leftHand_multiAim.weight = 1.0f;
+        leftHand_multiAim.data.constrainedObject = leftWrist;
+        leftHand_multiAim.data.aimAxis = MultiAimConstraintData.Axis.Y;
+        leftHand_multiAim.data.upAxis = MultiAimConstraintData.Axis.Y;
+
+        var sources3 = leftHand_multiAim.data.sourceObjects;
+        sources3.Add(new WeightedTransform(targetThreeDPoints[17].transform, 1.0f));
+        leftHand_multiAim.data.sourceObjects = sources3;
+
+        leftHand_multiAim.data.maintainOffset = false;
+        leftHand_multiAim.data.constrainedXAxis = true;
+        leftHand_multiAim.data.constrainedYAxis = true;
+        leftHand_multiAim.data.constrainedZAxis = true;
+        leftHand_multiAim.data.limits = new Vector2(-60,60);
+
+        // Right Shoulder
+        var rightShoulder_twoBone = rightShoulderControl.AddComponent<TwoBoneIKConstraint>();
+
+        rightShoulder_twoBone.data.root = rightShoulder;
+        rightShoulder_twoBone.data.mid = rightArm;
+        rightShoulder_twoBone.data.tip = rightForeArm;
+
+        rightShoulder_twoBone.data.target = targetThreeDPoints[15].transform;
+        rightShoulder_twoBone.data.hint = targetThreeDPoints[14].transform;
+
+        rightShoulder_twoBone.data.targetPositionWeight = 0.2f;
+        rightShoulder_twoBone.data.targetRotationWeight = 0.0f;
+        rightShoulder_twoBone.data.hintWeight = 0.7f;
+
+        // Right Arm
+        var rightArm_twoBone = rightArmControl.AddComponent<TwoBoneIKConstraint>();
+
+        rightArm_twoBone.data.root = rightArm;
+        rightArm_twoBone.data.mid = rightForeArm;
+        rightArm_twoBone.data.tip = rightWrist;
+
+        rightArm_twoBone.data.target = targetThreeDPoints[16].transform;
+        rightArm_twoBone.data.hint = targetThreeDPoints[15].transform;
+
+        rightArm_twoBone.data.targetPositionWeight = 1.0f;
+        rightArm_twoBone.data.targetRotationWeight = 0.0f;
+        rightArm_twoBone.data.hintWeight = 1.0f;
+
+        // Right Hand
+        var rightHand_multiAim = rightHandControl.AddComponent<MultiAimConstraint>();
+
+        rightHand_multiAim.weight = 1.0f;
+        rightHand_multiAim.data.constrainedObject = rightWrist;
+        rightHand_multiAim.data.aimAxis = MultiAimConstraintData.Axis.Y;
+        rightHand_multiAim.data.upAxis = MultiAimConstraintData.Axis.Y;
+
+        var sources4 = rightHand_multiAim.data.sourceObjects;
+        sources4.Add(new WeightedTransform(targetThreeDPoints[18].transform, 1.0f));
+        rightHand_multiAim.data.sourceObjects = sources3;
+
+        rightHand_multiAim.data.maintainOffset = false;
+        rightHand_multiAim.data.constrainedXAxis = true;
+        rightHand_multiAim.data.constrainedYAxis = true;
+        rightHand_multiAim.data.constrainedZAxis = true;
+        rightHand_multiAim.data.limits = new Vector2(-60,60);
+
+        // Build Rig
         rigBuilder.Build();
 
         boneDistances = saveBoneDistances();
@@ -230,12 +362,12 @@ public class CharacterControl : MonoBehaviour {
         bones[0] = distAtoB(characterRoot.transform.position, belly.transform.position);
         bones[1] = distAtoB(belly.transform.position, neck.transform.position);
         bones[2] = distAtoB(neck.transform.position, nose.transform.position);
-        bones[3] = distAtoB(neck.transform.position, rightShoulder.transform.position);
-        bones[4] = 1.2f * distAtoB(rightShoulder.transform.position, rightElbow.transform.position);
-        bones[5] = 1.2f * distAtoB(rightElbow.transform.position, rightWrist.transform.position);
-        bones[6] = distAtoB(neck.transform.position, leftShoulder.transform.position);
-        bones[7] = 1.2f * distAtoB(leftShoulder.transform.position, leftElbow.transform.position);
-        bones[8] = 1.2f * distAtoB(leftElbow.transform.position, leftWrist.transform.position);
+        bones[3] = distAtoB(neck.transform.position, rightArm.transform.position);
+        bones[4] = distAtoB(rightArm.transform.position, rightForeArm.transform.position);
+        bones[5] = distAtoB(rightForeArm.transform.position, rightWrist.transform.position);
+        bones[6] = distAtoB(neck.transform.position, leftArm.transform.position);
+        bones[7] = distAtoB(leftArm.transform.position, leftForeArm.transform.position);
+        bones[8] = distAtoB(leftForeArm.transform.position, leftWrist.transform.position);
 
         return bones;
 
@@ -254,42 +386,6 @@ public class CharacterControl : MonoBehaviour {
         Vector3 ab = b - a;
 
         return ab;
-
-    }
-
-    private GameObject createTwoBoneIKConstraint(string name, Transform rig) {
-
-        GameObject constraintObject = new GameObject(name);
-
-        constraintObject.AddComponent<TwoBoneIKConstraint>();
-
-        constraintObject.transform.SetParent(rig);
-
-        return constraintObject;
-
-    }
-
-    private GameObject createChainIKConstraint(string name, Transform rig) {
-
-        GameObject constraintObject = new GameObject(name);
-
-        constraintObject.AddComponent<ChainIKConstraint>();
-
-        constraintObject.transform.SetParent(rig);
-
-        return constraintObject;
-
-    }
-
-    private GameObject createMultiAimConstraint(string name, Transform rig) {
-
-        GameObject constraintObject = new GameObject(name);
-
-        constraintObject.AddComponent<MultiAimConstraint>();
-
-        constraintObject.transform.SetParent(rig);
-
-        return constraintObject;
 
     }
 

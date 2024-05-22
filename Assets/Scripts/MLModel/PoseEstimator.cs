@@ -105,7 +105,8 @@ public class PoseEstimator : IDisposable {
                 
                 // Invert all axes of 3D outputs
                 initialOutput[..,..,..,..] *= -1;
-                initialOutput[..,..,..,..2] = initialOutput[..,..,..,..2] * 640 / 2;
+                initialOutput[..,..,..,..2] = initialOutput[..,..,..,..1] * 640 / 2;
+                initialOutput[..,..,..,1..2] = initialOutput[..,..,..,1..2] * 360 / 2;
                 initialOutput[..,..,..,2..] = initialOutput[..,..,..,2..] * 640 / 2;
 
                 var output = FF.Interpolate(initialOutput, new int[] { 1, numFrames/2, 17, 3 });
