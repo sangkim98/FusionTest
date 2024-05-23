@@ -26,6 +26,7 @@ public class CharacterControl : MonoBehaviour {
     [SerializeField, Range(0,1)] public float weight = 1.0f;
     private Rig core;
     private Rig arms;
+    private Rig look;
     // For joint control
     public Transform characterRoot;
     public Transform belly;
@@ -76,9 +77,6 @@ public class CharacterControl : MonoBehaviour {
 
         }
 
-        core.weight = weight;
-        arms.weight = weight;
-
     }
     private void init3DKeypoints() {
 
@@ -110,6 +108,7 @@ public class CharacterControl : MonoBehaviour {
         Vector3 rootToBelly = fromAtoB(joints[0], joints[7]);
         Vector3 bellyToNeck = fromAtoB(joints[7], joints[8]);
         Vector3 neckToNose = fromAtoB(joints[8], joints[9]);
+        Vector3 noseToHead = fromAtoB(joints[9], joints[10]);
         Vector3 neckToLeftShoulder = fromAtoB(joints[8], joints[11]);
         Vector3 leftShoulderToElbow = fromAtoB(joints[11], joints[12]);
         Vector3 leftElbowToWrist = fromAtoB(joints[12], joints[13]);
@@ -120,6 +119,7 @@ public class CharacterControl : MonoBehaviour {
         rootToBelly.Normalize();
         bellyToNeck.Normalize();
         neckToNose.Normalize();
+        noseToHead.Normalize();
         neckToLeftShoulder.Normalize();
         leftShoulderToElbow.Normalize();
         leftElbowToWrist.Normalize();
@@ -127,8 +127,13 @@ public class CharacterControl : MonoBehaviour {
         rightShoulderToElbow.Normalize();
         rightElbowToWrist.Normalize();
 
+        joints[0].x = 0;
+        joints[0].y = 0;
+        joints[0].z = 0;
         joints[7] = joints[0] + rootToBelly * boneDistances[0];
         joints[8] = joints[7] + bellyToNeck * boneDistances[1];
+        joints[9] = joints[8] + neckToNose * boneDistances[2];
+        joints[10] = joints[9] + noseToHead * 1.5f * boneDistances[2];
         joints[9] = joints[8] + neckToNose * boneDistances[2];
         joints[11] = joints[8] + neckToLeftShoulder * boneDistances[6];
         joints[12] = joints[11] + leftShoulderToElbow * boneDistances[7];
@@ -138,10 +143,10 @@ public class CharacterControl : MonoBehaviour {
         joints[15] = joints[14] + rightShoulderToElbow * boneDistances[4];
         joints[16] = joints[15] + rightElbowToWrist * boneDistances[5];
         var rightHandPoint = joints[15] + 1.2f * rightElbowToWrist * boneDistances[5];
+        joints[8] = joints[7] + 0.8f * bellyToNeck * boneDistances[1];
+        joints[9] = joints[8] + neckToNose * boneDistances[2];
 
         for (int idx = 0; idx < joints.Length; idx++) {
-
-            if(idx == 10) continue;
 
             GameObject point = targetThreeDPoints[idx];
             point.transform.localPosition = joints[idx];
@@ -158,16 +163,21 @@ public class CharacterControl : MonoBehaviour {
         RigBuilder rigBuilder = gameObject.AddComponent<RigBuilder>();
         GameObject rig_core = new GameObject("Core Rig");
         GameObject rig_arms = new GameObject("Arm Rig");
+        GameObject rig_look = new GameObject("Look Rig");
         core = rig_core.AddComponent<Rig>();
         arms = rig_arms.AddComponent<Rig>();
+        look = rig_look.AddComponent<Rig>();
         core.weight = weight;
         arms.weight = weight;
+        look.weight = weight;
 
         rig_core.transform.SetParent(gameObject.transform);
         rig_arms.transform.SetParent(gameObject.transform);
+        rig_look.transform.SetParent(gameObject.transform);
 
         rigBuilder.layers.Add(new RigLayer(core.GetComponent<Rig>(), true));
         rigBuilder.layers.Add(new RigLayer(arms.GetComponent<Rig>(), true));
+        rigBuilder.layers.Add(new RigLayer(look.GetComponent<Rig>(), true));
 
         // Setup Core Rig
         GameObject spineControl = new GameObject("spineControl");
@@ -175,23 +185,23 @@ public class CharacterControl : MonoBehaviour {
         GameObject neckControl = new GameObject("neckControl");
 
         spineControl.transform.SetParent(rig_core.transform);
-        lookAt.transform.SetParent(spineControl.transform);
         neckControl.transform.SetParent(spineControl.transform);
 
         // Main Spine Constraints
         var spine_chainIK = spineControl.AddComponent<ChainIKConstraint>();
         var spine_multiAim = spineControl.AddComponent<MultiAimConstraint>();
         var spine_multiRotation = spineControl.AddComponent<MultiRotationConstraint>();
+
         // Chain IK
         spine_chainIK.data.root = belly;
-        spine_chainIK.data.tip = neck;
+        spine_chainIK.data.tip = spine;
         spine_chainIK.data.target = targetThreeDPoints[8].transform;
         spine_chainIK.data.maxIterations = 15;
         spine_chainIK.data.tolerance = 0.0001f;
-        spine_chainIK.data.chainRotationWeight = 0.0f;
+        spine_chainIK.data.chainRotationWeight = 1.0f;
         spine_chainIK.data.tipRotationWeight = 0.0f;
         // Multi-Aim
-        spine_multiAim.data.constrainedObject = belly;
+        spine_multiAim.data.constrainedObject = spine;
 
         var sources1 = spine_multiAim.data.sourceObjects;
         sources1.Add(new WeightedTransform(targetThreeDPoints[11].transform, 1.0f));
@@ -207,11 +217,13 @@ public class CharacterControl : MonoBehaviour {
         spine_multiAim.data.limits = new Vector2(-60,60);
         // Multi-Rotation
         
-
+        // Look Rig Setup
         // Look At Contraints
+        lookAt.transform.SetParent(rig_look.transform);
+
         var lookAt_multiAim = lookAt.AddComponent<MultiAimConstraint>();
         lookAt_multiAim.weight = 1.0f;
-        lookAt_multiAim.data.constrainedObject = neck;
+        lookAt_multiAim.data.constrainedObject = nose;
         lookAt_multiAim.data.aimAxis = MultiAimConstraintData.Axis.Z;
         lookAt_multiAim.data.upAxis = MultiAimConstraintData.Axis.Y;
 
@@ -232,12 +244,12 @@ public class CharacterControl : MonoBehaviour {
         neck_twoBone.data.mid = neck;
         neck_twoBone.data.tip = head;
 
-        neck_twoBone.data.target = targetThreeDPoints[9].transform;
-        neck_twoBone.data.hint = targetThreeDPoints[8].transform;
+        neck_twoBone.data.target = targetThreeDPoints[10].transform;
+        neck_twoBone.data.hint = targetThreeDPoints[9].transform;
 
         neck_twoBone.data.targetPositionWeight = 1.0f;
         neck_twoBone.data.targetRotationWeight = 0.0f;
-        neck_twoBone.data.hintWeight = 1.0f;
+        neck_twoBone.data.hintWeight = 0.0f;
 
         // Setup Arm Rig
         GameObject leftShoulderControl = new GameObject("leftShoulderControl");
@@ -300,7 +312,7 @@ public class CharacterControl : MonoBehaviour {
         leftHand_multiAim.data.constrainedXAxis = true;
         leftHand_multiAim.data.constrainedYAxis = true;
         leftHand_multiAim.data.constrainedZAxis = true;
-        leftHand_multiAim.data.limits = new Vector2(-60,60);
+        leftHand_multiAim.data.limits = new Vector2(0,0);
 
         // Right Shoulder
         var rightShoulder_twoBone = rightShoulderControl.AddComponent<TwoBoneIKConstraint>();
@@ -346,7 +358,7 @@ public class CharacterControl : MonoBehaviour {
         rightHand_multiAim.data.constrainedXAxis = true;
         rightHand_multiAim.data.constrainedYAxis = true;
         rightHand_multiAim.data.constrainedZAxis = true;
-        rightHand_multiAim.data.limits = new Vector2(-60,60);
+        rightHand_multiAim.data.limits = new Vector2(0,0);
 
         // Build Rig
         rigBuilder.Build();
@@ -368,6 +380,7 @@ public class CharacterControl : MonoBehaviour {
         bones[6] = distAtoB(neck.transform.position, leftArm.transform.position);
         bones[7] = distAtoB(leftArm.transform.position, leftForeArm.transform.position);
         bones[8] = distAtoB(leftForeArm.transform.position, leftWrist.transform.position);
+        bones[9] = distAtoB(nose.transform.position, head.transform.position);
 
         return bones;
 
