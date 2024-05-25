@@ -49,7 +49,7 @@ public class CharacterControl : MonoBehaviour {
 
         WebCamDevice[] devices = WebCamTexture.devices;
         
-        webcamTexture = new WebCamTexture(devices[0].name, 640, 360, 30);
+        webcamTexture = new WebCamTexture(devices[0].name, 640, 360, 60);
 
         webcamTexture.Play();
 
@@ -88,9 +88,7 @@ public class CharacterControl : MonoBehaviour {
 
         for (int i = 0; i <= 18; i++) {
 
-            GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-
-            sphere.name = String.Format("joint{0}", i);
+            GameObject sphere = new GameObject(String.Format("joint{0}", i));
 
             sphere.transform.localScale = new Vector3(0.05f,0.05f,0.05f);
             sphere.transform.localPosition = new Vector3(0,0,0);
