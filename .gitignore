@@ -5,6 +5,7 @@
 /[Bb]uilds/*
 /[Ll]ibrary/*
 /Logs/*
+/Assets/Test/*
 
 # Unity Samples
 /Assets/Samples/*
@@ -19,3 +20,6 @@
 # Cache and temporary files
 *.cache
 *.temp
+
+# ONNX Models
+*.onnx
